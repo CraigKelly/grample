@@ -1,0 +1,7 @@
+#!/bin/bash
+
+TESTED=./.tested
+
+rm -f "$TESTED"
+go test -race -tags "test" "$@" ./...
+touch "$TESTED"

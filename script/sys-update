@@ -3,6 +3,7 @@
 import re
 import subprocess
 
+
 def main():
     with open('Gopkg.toml') as fh:
         lines = [i.strip() for i in fh]
