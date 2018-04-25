@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+echo ""
+
+echo -e "${GREEN}Pre Update Status${NC}"
+dep status
+
+echo ""
+
+echo -e "${GREEN}UPDATE${NC}"
+dep ensure -update -v
+
+echo ""
+
+echo -e "${RED}POST Update Status${NC}"
+dep status
+
+echo ""
+
+echo -e "${YELLOW}You should check git status now${NC}"
