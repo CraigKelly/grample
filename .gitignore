@@ -1,6 +1,7 @@
 grample
 .tested
 *.swp
+cover.html
 
 # Binaries for programs and plugins
 *.exe
