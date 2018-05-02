@@ -39,6 +39,7 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
+    // TODO: put individual commands in their file with actual testing
 	// TODO: actual flags we need
 	// TODO: don't forget to bind them to viper (and use viper to read them)
 	// TODO: set default values for flags
