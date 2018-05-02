@@ -39,6 +39,15 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
+	// TODO: actual flags we need
+	// TODO: don't forget to bind them to viper (and use viper to read them)
+	// TODO: set default values for flags
+	// TODO: unmarshal config from viper into a single struct
+	// TODO: cmd - config, which prints out config (do this from config struct above)
+	// TODO: cmd - read, which loads a file, verifies the model, and output a descrip
+	// TODO: REAL WORK
+	// TODO: update readme with flags, giving command line, config file, and env var names (and default values)
+
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
@@ -62,11 +71,12 @@ func initConfig() {
 			os.Exit(1)
 		}
 
-		// Search config in home directory with name ".grample2" (without extension).
+		// Search config in home directory with name ".grample" (without extension).
 		viper.AddConfigPath(home)
 		viper.SetConfigName(".grample")
 	}
 
+	viper.SetEnvPrefix("GRAMPLE")
 	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
