@@ -65,3 +65,31 @@ func TestVarNormProb(t *testing.T) {
 		}
 	}
 }
+
+// test our naming helper
+func TestVarNaming(t *testing.T) {
+	assert := assert.New(t)
+
+	v := &Variable{"StartName", 0, []float64{}}
+
+	assert.Error(v.CreateName(-1)) // Quick error testing
+
+	cases := []struct {
+		index int
+		name  string
+	}{
+		{0, "A"},
+		{1, "B"},
+		{25, "Z"},
+		{26, "AA"},
+		{27, "AB"},
+		{(26 * 26) + 26 - 1, "ZZ"},
+		{(26 * 26) + 26, "AAA"},
+	}
+
+	for _, c := range cases {
+		assert.NotEqual(c.name, v.Name)
+		assert.NoError(v.CreateName(c.index))
+		assert.Equal(c.name, v.Name)
+	}
+}

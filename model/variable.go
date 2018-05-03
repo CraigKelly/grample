@@ -67,3 +67,45 @@ func (v *Variable) NormMarginal() error {
 
 	return nil
 }
+
+// CreateName just gives a name to variable based on a numeric index
+func (v *Variable) CreateName(i int) error {
+	if i < 0 {
+		return errors.Errorf("Invalid index %d for CreateName - must be >= 0", i)
+	}
+
+	// Just use a letter scheme (similar to Excel columns)
+	v.Name = letter26(i)
+	return nil
+}
+
+func divmod(numerator, denominator int) (quotient, remainder int) {
+	quotient = numerator / denominator // integer division, decimals are truncated
+	remainder = numerator % denominator
+	return
+}
+
+// letter26 is sort of base-26 with only letters, but A=0 *and* the start digit (so 0=A, 1=B, and ZZ+1=AAA)
+func letter26(n int) string {
+	// Easy for n==0
+	if n == 0 {
+		return "A"
+	}
+	// Need to bump up one
+	n++
+
+	const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	digits := make([]byte, 0, 8)
+	var remain int
+	for n > 0 {
+		n, remain = divmod(n-1, 26)
+		digits = append(digits, LETTERS[remain])
+	}
+
+	//reverse
+	for i, j := 0, len(digits)-1; i < j; i, j = i+1, j-1 {
+		digits[i], digits[j] = digits[j], digits[i]
+	}
+
+	return string(digits)
+}
