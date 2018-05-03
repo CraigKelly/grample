@@ -18,6 +18,7 @@ type Reader interface {
 	ReadModel(data []byte) (*Model, error)
 }
 
+// TODO: up the coverage on this file
 // TODO: Evidence reader
 
 // Model represent a PGM
