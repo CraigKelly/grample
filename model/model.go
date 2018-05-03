@@ -18,7 +18,7 @@ type Reader interface {
 	ReadModel(data []byte) (*Model, error)
 }
 
-// TODO: Evidence reader?
+// TODO: Evidence reader
 
 // Model represent a PGM
 type Model struct {
