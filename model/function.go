@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/pkg/errors"
@@ -39,23 +40,57 @@ type Function struct {
 	Table []float64   // CPT - len is product of variables' Card
 }
 
-// Check returns an error if any problem is found
-func (f *Function) Check() error {
-	expTableSize := 0
-
-	if len(f.Vars) > 0 {
-		expTableSize = 1
-
-		for _, v := range f.Vars {
-			if v.Card < 1 {
-				return errors.Errorf("Variable %s has card %d but is in Function %s", v.Name, v.Card, f.Name)
-			}
-			expTableSize *= v.Card
+// calcTabSize return the correct size for the function's table. If the
+// function is invalid (no variables or a variable has a cardinality of 0),
+// then 0 will be resturned
+func calcTabSize(vars []*Variable) int {
+	ts := 0
+	for i, v := range vars {
+		if i == 0 {
+			ts = 1
 		}
+		ts *= v.Card
 	}
 
-	if expTableSize != len(f.Table) {
-		return errors.Errorf("Function %s expected table size %d, found %d", f.Name, expTableSize, len(f.Table))
+	return ts
+}
+
+// NewFunction creates a function from an index and a list of variables
+func NewFunction(index int, vars []*Variable) (*Function, error) {
+	if index < 0 {
+		return nil, errors.Errorf("Invalid index %d for function", index)
+	}
+
+	name := fmt.Sprintf("func-%d", index)
+
+	if len(vars) < 1 {
+		return nil, errors.Errorf("Empty variable list for function %s is invalid", name)
+	}
+
+	tabSize := calcTabSize(vars)
+	if tabSize < 1 {
+		return nil, errors.Errorf("Function %s is invalid - could not calculate table size", name)
+	}
+
+	f := &Function{
+		Name:  name,
+		Vars:  vars,
+		Table: make([]float64, tabSize),
+	}
+
+	return f, nil
+}
+
+// Check returns an error if any problem is found
+func (f *Function) Check() error {
+	expTabSize := calcTabSize(f.Vars)
+
+	if expTabSize < 1 {
+		return errors.Errorf("Function %s is invalid - can not calculate table size", f.Name)
+	}
+
+	if expTabSize != len(f.Table) {
+		return errors.Errorf("Function %s expected table size %d, found %d", f.Name, expTabSize, len(f.Table))
 	}
 
 	return nil

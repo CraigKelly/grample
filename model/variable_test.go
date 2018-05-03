@@ -10,6 +10,13 @@ import (
 func TestVarBadCheck(t *testing.T) {
 	assert := assert.New(t)
 
+	// easy check
+	_, e := NewVariable(1, 0)
+	assert.Error(e)
+	_, e = NewVariable(-1, 2)
+	assert.Error(e)
+
+	// bad cases
 	cases := []Variable{
 		{"BadVar-NoCardHaveMarg", 0, []float64{0.5, 0.5}},
 		{"BadVar-HaveCardNoMarg", 2, []float64{}},
@@ -27,6 +34,15 @@ func TestVarBadCheck(t *testing.T) {
 func TestVarGoodCheck(t *testing.T) {
 	assert := assert.New(t)
 
+	// Easy checks
+	for i := 1; i <= 3; i++ {
+		v, e := NewVariable(i, i)
+		assert.NoError(e)
+		assert.NoError(v.Check())
+		assert.Equal(i, v.Card)
+	}
+
+	// good cases
 	cases := []Variable{
 		{"GoodVar-NoCard", 0, []float64{}},
 		{"GoodVar-Card1", 1, []float64{1.0}},

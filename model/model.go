@@ -2,6 +2,7 @@ package model
 
 import (
 	"io/ioutil"
+	"path/filepath"
 
 	"github.com/pkg/errors"
 )
@@ -16,8 +17,6 @@ const (
 type Reader interface {
 	ReadModel(data []byte) (*Model, error)
 }
-
-// TODO: UAI reader
 
 // TODO: Evidence reader?
 
@@ -35,7 +34,17 @@ func NewModelFromFile(r Reader, filename string) (*Model, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not READ model from %s", filename)
 	}
-	return NewModelFromBuffer(r, data)
+
+	model, err := NewModelFromBuffer(r, data)
+	if err != nil {
+		return nil, err
+	}
+
+	// Name the model from the file
+	var ext = filepath.Ext(filename)
+	model.Name = filename[0 : len(filename)-len(ext)]
+
+	return model, nil
 }
 
 // NewModelFromBuffer creates a model from the given pre-read data
@@ -44,6 +53,12 @@ func NewModelFromBuffer(r Reader, data []byte) (*Model, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not PARSE model")
 	}
+
+	err = m.Check()
+	if err != nil {
+		return nil, errors.Wrapf(err, "Parsed model is not valid")
+	}
+
 	return m, nil
 }
 

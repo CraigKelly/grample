@@ -13,6 +13,36 @@ type Variable struct {
 	Marginal []float64 // Current best estimate for marginal distribution: len should equal Card
 }
 
+// NewVariable is our standard way to create a variable from an index and a
+// cardinality. The marginal will be set to uniform.
+func NewVariable(index int, card int) (*Variable, error) {
+	if index < 0 {
+		return nil, errors.Errorf("Invalid index %d with card %d", index, card)
+	}
+	if card < 1 {
+		return nil, errors.Errorf("Invalid card %d for variable %d", card, index)
+	}
+
+	v := &Variable{
+		Name:     "",
+		Card:     card,
+		Marginal: make([]float64, card),
+	}
+
+	var err error
+	err = v.CreateName(index)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not init name for var %d (card %d)", index, card)
+	}
+
+	err = v.NormMarginal()
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not init norm marginal for var %d (card %d)", index, card)
+	}
+
+	return v, nil
+}
+
 // Check returns an error if any problem is found
 func (v *Variable) Check() error {
 	if v.Card != len(v.Marginal) {
@@ -28,7 +58,7 @@ func (v *Variable) Check() error {
 
 		const EPS = 1e-8
 		if math.Abs(sum-1.0) >= EPS {
-			return errors.Errorf("Variable %s has marginal dist with sum=%f", sum)
+			return errors.Errorf("Variable %s has marginal dist with sum=%f", v.Name, sum)
 		}
 	}
 
@@ -57,10 +87,21 @@ func (v *Variable) NormMarginal() error {
 
 	const EPS = 1e-8
 
+	// Can stop if already normed
 	if math.Abs(sum-1.0) < EPS {
-		return nil // Already norm'ed
+		return nil
 	}
 
+	// If sum is 0, we just assume uniformity
+	if math.Abs(sum) < EPS {
+		p := 1.0 / float64(v.Card)
+		for i := range v.Marginal {
+			v.Marginal[i] = p
+		}
+		return nil
+	}
+
+	// norm
 	for i, p := range v.Marginal {
 		v.Marginal[i] = p / sum
 	}

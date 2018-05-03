@@ -58,8 +58,6 @@ func TestFuncGoodCheck(t *testing.T) {
 	assert.NoError(v3.Check())
 
 	cases := []*Function{
-		{"Good-NoVar", []*Variable{}, []float64{}},
-
 		{"Good-1Var1", []*Variable{v1}, []float64{0.5}},
 		{"Good-1Var2", []*Variable{v2}, []float64{0.5, 0.5}},
 		{"Good-1Var3", []*Variable{v3}, []float64{0.5, 0.5, 0.5}},
