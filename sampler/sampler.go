@@ -1,11 +1,9 @@
 package sampler
 
-import (
-	"github.com/CraigKelly/grample/model"
-)
-
-// A Sampler samplers from the given model
+// A Sampler samplers from the given model. Note that we follow gonum
+// conventions and sample in place (although we return an error). Although
+// it's not explicit, it is assumed that the sample is the same size as a
+// variable list
 type Sampler interface {
-	Init(*model.Model) error
-	Sample() ([]*model.Variable, error)
+	Sample(s []float64) error
 }
