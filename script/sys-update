@@ -4,7 +4,10 @@ import re
 import subprocess
 
 
-def main():
+def all_deps():
+    # Unconditionally get all of gonum before we analyze the Gopkg file
+    yield 'gonum.org/v1/gonum/...'
+
     with open('Gopkg.toml') as fh:
         lines = [i.strip() for i in fh]
 
@@ -18,9 +21,13 @@ def main():
         if not m:
             continue
 
-        pkg = m.groups(0)[0]
+        yield m.groups(0)[0]
+
+
+def main():
+    for pkg in all_deps():
         print('\033[91m{}\033[0m'.format(pkg))
-        subprocess.run(['go', 'get', '-v', '-u', pkg], check=True)
+        subprocess.run(['go', 'get', '-v', '-t', '-u', pkg], check=True)
 
 
 if __name__ == '__main__':
