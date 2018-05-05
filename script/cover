@@ -5,4 +5,4 @@ go tool cover -html=cover.out -o cover.html
 
 HOST=${HOST:-0.0.0.0}
 PORT=${PORT:-8000}
-python3 -m http.server ${PORT} --bind ${HOST}
+python3 -m http.server "${PORT}" --bind "${HOST}"
