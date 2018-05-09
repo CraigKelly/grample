@@ -166,7 +166,7 @@
     "stat/distuv",
     "stat/sampleuv"
   ]
-  revision = "32a6369498d10160c3cc66459c2f84859a6f4a24"
+  revision = "fa6741ae521b41b5cb0f3ffc735fceb7a65c1c11"
 
 [[projects]]
   name = "gopkg.in/yaml.v2"
