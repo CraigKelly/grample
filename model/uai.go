@@ -8,8 +8,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// TODO: add at least one or two "real" files for testing
-
 // UAIReader reads the UAI inference data set format. This format has also been
 // used at competitions like PIC2001 at PASCAL2. In fact, a very good
 // description of the format is available at
