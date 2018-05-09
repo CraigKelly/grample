@@ -9,7 +9,10 @@ TODO
 
 # Architecture Overview
 
-TODO
+TODO: general description
+
+TODO: rand sources during run get created using seed (if specified) - also need
+      note about the fact that NewSource sources are NOT safe for concurrent access
 
 # Dependencies
 
