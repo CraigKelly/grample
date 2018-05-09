@@ -48,8 +48,8 @@ func Execute() {
 	rootCmd.PersistentFlags().StringVarP(&samplerName, "sampler", "s", "", "Name of sampler to use")
 	rootCmd.PersistentFlags().Int64VarP(&randomSeed, "seed", "r", 1, "Random seed to use")
 
-	rootCmd.MarkFlagRequired("model")
-	rootCmd.MarkFlagRequired("sampler")
+	rootCmd.MarkPersistentFlagRequired("model")
+	rootCmd.MarkPersistentFlagRequired("sampler")
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
