@@ -119,12 +119,6 @@
 
 [[projects]]
   branch = "master"
-  name = "golang.org/x/exp"
-  packages = ["rand"]
-  revision = "8460e604b9de9da5834c9f198cadf9dca4b05cac"
-
-[[projects]]
-  branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
   revision = "7db1c3b1a98089d0071c84f646ff5c96aad43682"
@@ -143,32 +137,6 @@
   version = "v0.3.0"
 
 [[projects]]
-  branch = "master"
-  name = "gonum.org/v1/gonum"
-  packages = [
-    "blas",
-    "blas/blas64",
-    "blas/gonum",
-    "floats",
-    "internal/asm/c128",
-    "internal/asm/f32",
-    "internal/asm/f64",
-    "internal/math32",
-    "lapack",
-    "lapack/gonum",
-    "lapack/lapack64",
-    "mat",
-    "mathext",
-    "mathext/internal/amos",
-    "mathext/internal/cephes",
-    "mathext/internal/gonum",
-    "stat",
-    "stat/distuv",
-    "stat/sampleuv"
-  ]
-  revision = "fa6741ae521b41b5cb0f3ffc735fceb7a65c1c11"
-
-[[projects]]
   name = "gopkg.in/yaml.v2"
   packages = ["."]
   revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
@@ -177,6 +145,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "36552c74f39e9711c8f4956cd6a75e867d5c989ddde4116f498834f69117ae09"
+  inputs-digest = "2ea60ea4b939bb7dac032d69f7b690271d42b9c20e200a1a7f545187a85a0ea2"
   solver-name = "gps-cdcl"
   solver-version = 1
