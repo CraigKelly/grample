@@ -14,7 +14,6 @@ type GibbsSimple struct {
 	rnd         *rand.Rand
 	pgm         *model.Model
 	varSelector sampleuv.Sampler
-	varSamplers []sampleuv.Sampler
 	last        []float64
 }
 
@@ -25,14 +24,19 @@ func NewGibbsSimple(src rand.Source, m *model.Model) (*GibbsSimple, error) {
 	}
 
 	s := &GibbsSimple{
-		src: src,
-		rnd: rand.New(src),
-		pgm: m,
+		src:  src,
+		rnd:  rand.New(src),
+		pgm:  m,
+		last: make([]float64, len(m.Vars)),
 	}
 
-	// TODO: create varSelector over variables (uniform)
-	// TODO: create array for varSamplers - each is weighted for the var's Card
-	// TODO: init var samplers
+	// Starting point in the sample space - note that the next call to Sample
+	// will return the next sample, and not this one so our user will never
+	// see this starting point unless they explicitly look for it.
+	for i, v := range s.pgm.Vars {
+		// Select value for every variable with uniform prob
+		s.last[i] = float64(s.rnd.Int31n(int32(v.Card)))
+	}
 
 	return s, nil
 }
@@ -42,19 +46,6 @@ func (g *GibbsSimple) Sample(s []float64) error {
 	if len(s) != len(g.pgm.Vars) {
 		return errors.Errorf("Sample size %d != Var size %d in model %s", len(s), len(g.pgm.Vars), g.pgm.Name)
 	}
-
-	if len(g.last) < 1 {
-		// Initial: we sample initial values at random for all variables
-		g.last = make([]float64, len(g.pgm.Vars))
-		for i, v := range g.pgm.Vars {
-			// TODO: should we use the samplers?
-			g.last[i] = float64(g.rnd.Int31n(int32(v.Card)))
-		}
-		copy(s, g.last)
-		return nil
-	}
-
-	// TODO: update var samplers?
 
 	varIdx := 0    // TODO: select variable with g.varSelector
 	nextVal := 0.0 // TODO: Create our next sample with g.varSamplers[varIdx]
