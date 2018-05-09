@@ -39,7 +39,7 @@ func (s *UniformSampler) ValSample(card int) (int, error) {
 		return -1, errors.New("Can not sample if Cardinality < 1")
 	}
 	if card == 1 {
-		return -1, nil
+		return 0, nil
 	}
 
 	return int(s.rnd.Int31n(int32(card))), nil
