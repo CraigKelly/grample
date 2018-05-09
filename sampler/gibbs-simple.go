@@ -17,6 +17,8 @@ type GibbsSimple struct {
 	last        []float64
 }
 
+// TODO: unit test error handling and getting at least one good sample
+
 // NewGibbsSimple creates a new sampler
 func NewGibbsSimple(src rand.Source, m *model.Model) (*GibbsSimple, error) {
 	if m == nil {

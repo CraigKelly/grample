@@ -18,7 +18,6 @@ type Reader interface {
 	ReadModel(data []byte) (*Model, error)
 }
 
-// TODO: up the coverage on this file
 // TODO: Evidence reader
 
 // Model represent a PGM
@@ -69,11 +68,18 @@ func (m Model) Check() error {
 		return errors.Errorf("Unknown model type %s", m.Type)
 	}
 
+	varID := make(map[int]bool)
 	for _, v := range m.Vars {
 		e := v.Check()
 		if e != nil {
 			return errors.Wrapf(e, "Model %s has an invalid Variable %s", m.Name, v.Name)
 		}
+
+		_, ok := varID[v.ID]
+		if ok {
+			return errors.Errorf("Duplicate Id %d for Var %s", v.ID, v.Name)
+		}
+		varID[v.ID] = true
 	}
 
 	for _, f := range m.Funcs {

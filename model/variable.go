@@ -8,6 +8,7 @@ import (
 
 // Variable represents a single node in a PGM, a random variable, or a marginal distribution.
 type Variable struct {
+	ID       int       // A numeric ID for tracking a variable
 	Name     string    // Variable name (just a zero-based index in UAI formats)
 	Card     int       // Cardinality - values are assume to be 0 to Card-1
 	Marginal []float64 // Current best estimate for marginal distribution: len should equal Card
@@ -24,6 +25,7 @@ func NewVariable(index int, card int) (*Variable, error) {
 	}
 
 	v := &Variable{
+		ID:       index,
 		Name:     "",
 		Card:     card,
 		Marginal: make([]float64, card),
