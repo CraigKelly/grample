@@ -7,6 +7,14 @@ import (
 	"github.com/pkg/errors"
 )
 
+// A FullSampler populates the given array with values from the model (e.e.
+// Gibbs sampling).  The array MUST be the same size as the variables being
+// sampled. Note that this call pattern (mutable param) parallels the samplers
+// in the gonum stats subpackags.
+type FullSampler interface {
+	Sample([]float64) error
+}
+
 // A ValSampler returns a sample given a cardinality. We assume the possible
 // values are 0 to Cardinality-1.
 type ValSampler interface {

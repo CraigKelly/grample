@@ -61,7 +61,7 @@ func NewGibbsSimple(src rand.Source, m *model.Model) (*GibbsSimple, error) {
 	return s, nil
 }
 
-// Sample returns a single sample
+// Sample returns a single sample - implements FullSampler
 func (g *GibbsSimple) Sample(s []float64) error {
 	if len(s) != len(g.pgm.Vars) {
 		return errors.Errorf("Sample size %d != Var size %d in model %s", len(s), len(g.pgm.Vars), g.pgm.Name)
