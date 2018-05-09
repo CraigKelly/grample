@@ -24,18 +24,18 @@ func TestFuncBadCheck(t *testing.T) {
 	assert.NoError(v3.Check())
 
 	cases := []*Function{
-		{"Bad-NoVarHaveTable", []*Variable{}, []float64{0.5, 0.5}},
-		{"Bad-0Var", []*Variable{v0}, []float64{}},
+		{"Bad-NoVarHaveTable", []*Variable{}, []float64{0.5, 0.5}, false},
+		{"Bad-0Var", []*Variable{v0}, []float64{}, false},
 
-		{"Bad-1Var1BadTable", []*Variable{v1}, []float64{0.5, 0.5}},
-		{"Bad-1Var2BadTable", []*Variable{v2}, []float64{0.5, 0.5, 0.5}},
-		{"Bad-1Var3BadTable", []*Variable{v3}, []float64{0.5}},
+		{"Bad-1Var1BadTable", []*Variable{v1}, []float64{0.5, 0.5}, false},
+		{"Bad-1Var2BadTable", []*Variable{v2}, []float64{0.5, 0.5, 0.5}, false},
+		{"Bad-1Var3BadTable", []*Variable{v3}, []float64{0.5}, false},
 
-		{"Bad-2VarBadVar", []*Variable{v2, v0}, []float64{0.5, 0.5}},
-		{"Bad-2VarBadTableHi", []*Variable{v2, v2}, []float64{0.5, 0.5, 0.5, 0.5, 0.5}},
-		{"Bad-2VarBadTableLo", []*Variable{v2, v2}, []float64{0.5, 0.5}},
+		{"Bad-2VarBadVar", []*Variable{v2, v0}, []float64{0.5, 0.5}, false},
+		{"Bad-2VarBadTableHi", []*Variable{v2, v2}, []float64{0.5, 0.5, 0.5, 0.5, 0.5}, false},
+		{"Bad-2VarBadTableLo", []*Variable{v2, v2}, []float64{0.5, 0.5}, false},
 
-		{"Bad-3VarBadTable", []*Variable{v1, v2, v3}, []float64{0.5, 0.5, 0.5, 0.5, 0.5}},
+		{"Bad-3VarBadTable", []*Variable{v1, v2, v3}, []float64{0.5, 0.5, 0.5, 0.5, 0.5}, false},
 	}
 
 	for _, f := range cases {
@@ -58,15 +58,15 @@ func TestFuncGoodCheck(t *testing.T) {
 	assert.NoError(v3.Check())
 
 	cases := []*Function{
-		{"Good-1Var1", []*Variable{v1}, []float64{0.5}},
-		{"Good-1Var2", []*Variable{v2}, []float64{0.5, 0.5}},
-		{"Good-1Var3", []*Variable{v3}, []float64{0.5, 0.5, 0.5}},
+		{"Good-1Var1", []*Variable{v1}, []float64{0.5}, false},
+		{"Good-1Var2", []*Variable{v2}, []float64{0.5, 0.5}, false},
+		{"Good-1Var3", []*Variable{v3}, []float64{0.5, 0.5, 0.5}, false},
 
-		{"Good-2VarBin", []*Variable{v2, v2}, []float64{0.5, 0.5, 0.5, 0.5}},
-		{"Good-2VarMad", []*Variable{v2, v3}, []float64{0.5, 0.5, 0.5, 0.5, 0.5, 0.5}},
+		{"Good-2VarBin", []*Variable{v2, v2}, []float64{0.5, 0.5, 0.5, 0.5}, false},
+		{"Good-2VarMad", []*Variable{v2, v3}, []float64{0.5, 0.5, 0.5, 0.5, 0.5, 0.5}, false},
 
-		{"Good-3VarAll", []*Variable{v1, v2, v3}, []float64{0.5, 0.5, 0.5, 0.5, 0.5, 0.5}},
-		{"Good-3VarNo1", []*Variable{v3, v2, v2}, []float64{0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5}},
+		{"Good-3VarAll", []*Variable{v1, v2, v3}, []float64{0.5, 0.5, 0.5, 0.5, 0.5, 0.5}, false},
+		{"Good-3VarNo1", []*Variable{v3, v2, v2}, []float64{0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5}, false},
 	}
 
 	for _, f := range cases {
@@ -97,6 +97,7 @@ func TestFuncTestEval(t *testing.T) {
 			4.05, // 1 1
 			5.06, // 1 2
 		},
+		false,
 	}
 
 	passCases := []struct {
@@ -121,10 +122,13 @@ func TestFuncTestEval(t *testing.T) {
 
 	const EPS float64 = 1e-14
 
+	totProduct := 1.0
+
 	for _, c := range passCases {
 		v, e := f.Eval(c.values)
 		assert.NoError(e)
 		assert.InEpsilon(c.expected, v, EPS)
+		totProduct *= v
 	}
 
 	for _, c := range failCases {
@@ -132,4 +136,20 @@ func TestFuncTestEval(t *testing.T) {
 		assert.Error(e)
 		assert.True(math.IsNaN(v))
 	}
+
+	// Now we can check our log space work
+	assert.False(f.IsLog)
+	assert.NoError(f.UseLogSpace())
+	assert.True(f.IsLog)
+	assert.Error(f.UseLogSpace())
+	assert.True(f.IsLog)
+
+	logSum := 0.0
+	for _, c := range passCases {
+		v, e := f.Eval(c.values)
+		assert.NoError(e)
+		logSum += v
+	}
+
+	assert.InEpsilon(totProduct, math.Exp(logSum), EPS)
 }

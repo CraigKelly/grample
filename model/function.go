@@ -38,6 +38,7 @@ type Function struct {
 	Name  string      // Name for function (or just a 0-based index in UAI formats)
 	Vars  []*Variable // Vars in function
 	Table []float64   // CPT - len is product of variables' Card
+	IsLog bool        // True if values are log(v) - default is false
 }
 
 // calcTabSize return the correct size for the function's table. If the
@@ -76,6 +77,7 @@ func NewFunction(index int, vars []*Variable) (*Function, error) {
 		Name:  name,
 		Vars:  vars,
 		Table: make([]float64, tabSize),
+		IsLog: false,
 	}
 
 	return f, nil
@@ -93,6 +95,26 @@ func (f *Function) Check() error {
 		return errors.Errorf("Function %s expected table size %d, found %d", f.Name, expTabSize, len(f.Table))
 	}
 
+	return nil
+}
+
+// UseLogSpace converts the current factor to Log (base-e) space IFF
+// it has not already been done
+func (f *Function) UseLogSpace() error {
+	if f.IsLog {
+		return errors.New("IsLog already set - double-call detected")
+	}
+
+	const eps = 1e-12
+
+	for i, v := range f.Table {
+		if v < eps {
+			v = eps
+		}
+		f.Table[i] = math.Log(v)
+	}
+
+	f.IsLog = true
 	return nil
 }
 
