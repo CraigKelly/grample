@@ -28,7 +28,7 @@ const PASCALExample = `MARKOV
 `
 
 // Test reading the example file at http://www.cs.huji.ac.il/project/PASCAL/fileFormat.php#model
-func TestUAIDocFile(t *testing.T) {
+func TestUAIDoc(t *testing.T) {
 	assert := assert.New(t)
 
 	r := UAIReader{}
@@ -73,4 +73,23 @@ func TestUAIDocFile(t *testing.T) {
 	val, err := m.Funcs[2].Eval([]int{1, 2}) // last val of last function
 	assert.NoError(err)
 	assert.True(math.Abs(val-0.189) < EPS)
+}
+
+// Test reading a pretty large file from disk
+func TestUAILargeFile(t *testing.T) {
+	assert := assert.New(t)
+
+	r := UAIReader{}
+	m, err := NewModelFromFile(r, "../res/relational_1.uai")
+	assert.NoError(err)
+	assert.NoError(m.Check())
+
+	assert.Equal(MARKOV, m.Type)
+
+	assert.Equal(500, len(m.Vars))
+	assert.Equal(62500, len(m.Funcs))
+
+	val, err := m.Funcs[62499].Eval([]int{1, 1}) // Last val of last func
+	assert.NoError(err)
+	assert.InEpsilon(val, 1.00752819544, 1e-12)
 }
