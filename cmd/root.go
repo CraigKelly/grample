@@ -19,13 +19,14 @@ var samplerName string
 var randomSeed int64
 var burnIn int64
 var maxIters int64
+var traceFile string
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	var rootCmd = &cobra.Command{
 		Use:   "grample",
-		Short: "(Probalistic) Grpahical Model Sampling Methods",
+		Short: "(Probalistic) Graphical Model Sampling Methods",
 		Long: `grample provides sampling-based inference for PGM's. Features include:
 
   - The ability to read UAI PGM files (for models and evidence)
@@ -52,7 +53,8 @@ func Execute() {
 	rootCmd.PersistentFlags().StringVarP(&uaiFile, "model", "m", "", "UAI model file to read")
 	rootCmd.PersistentFlags().StringVarP(&samplerName, "sampler", "s", "", "Name of sampler to use")
 	rootCmd.PersistentFlags().Int64VarP(&burnIn, "burnin", "b", 500, "Burn-In iteration count")
-	rootCmd.PersistentFlags().Int64VarP(&maxIters, "maxiters", "i", 2000, "Maximum iterations (not including burnin)")
+	rootCmd.PersistentFlags().Int64VarP(&maxIters, "maxiters", "i", 20000, "Maximum iterations (not including burnin)")
+	rootCmd.PersistentFlags().StringVarP(&traceFile, "trace", "t", "", "Optional trace file: all samples written here")
 
 	rootCmd.MarkPersistentFlagRequired("model")
 	rootCmd.MarkPersistentFlagRequired("sampler")
@@ -77,7 +79,13 @@ func modelMarginals() error {
 		return err
 	}
 	if verbose {
-		// TODO: output model info
+		fmt.Printf("MODEL: %+v\n", mod)
+		for _, v := range mod.Vars {
+			fmt.Printf("  %+v\n", v)
+		}
+		for _, f := range mod.Funcs {
+			fmt.Printf("  %+v\n", f)
+		}
 	}
 
 	// select sampler
@@ -91,13 +99,22 @@ func modelMarginals() error {
 	}
 
 	// Sampling: burn in
-	oneSample := make([]float64, len(mod.Vars))
+	oneSample := make([]int, len(mod.Vars))
 
 	fmt.Printf("Performing burn-in (%d)\n", burnIn)
 	for it := int64(1); it <= burnIn; it++ {
 		err = samp.Sample(oneSample)
 		if err != nil {
 			return errors.Wrapf(err, "Error during burn in on it %d", it)
+		}
+	}
+
+	// Trace file
+	var trace *os.File
+	if len(traceFile) > 0 {
+		trace, err = os.Create(traceFile)
+		if err != nil {
+			return errors.Wrapf(err, "Could not open trace file %s", traceFile)
 		}
 	}
 
@@ -111,15 +128,33 @@ func modelMarginals() error {
 		if err != nil {
 			return errors.Wrapf(err, "Error during main iteration it %d", it)
 		}
-		// TODO: actually update marginal info for vars
+
+		// Write trace if necessary
+		if trace != nil {
+			fmt.Fprintf(trace, "%v\n", oneSample)
+		}
+
+		// Update variable marginals
+		for i, v := range mod.Vars {
+			v.Marginal[oneSample[i]] += 1.0
+		}
+
 		// TODO: make output time based OR iteration based
 		// TODO: iteration count and time elapsed gets smaller if verbose
-		if it%500 == 0 {
+		if it%5000 == 0 {
 			fmt.Printf("  Iterations: %12d\n", it)
 		}
 	}
 
-	// TODO: output marginals found
+	// Output the marginals we found
+	// TODO: write to a UAI MAR file
+	// TODO: output comparison to a previous MAR file (should be known good)
+	fmt.Printf("Done. Marginals:\n")
+	for _, v := range mod.Vars {
+		fmt.Printf("Variable[%d] %s (Card:%d, SelCount:%d)\n", v.ID, v.Name, v.Card, v.Counter)
+		v.NormMarginal()
+		fmt.Printf("%+v\n", v.Marginal)
+	}
 
 	return nil
 }

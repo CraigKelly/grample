@@ -105,7 +105,7 @@ func (f *Function) UseLogSpace() error {
 		return errors.New("IsLog already set - double-call detected")
 	}
 
-	const eps = 1e-12
+	const eps = 1e-8
 
 	for i, v := range f.Table {
 		if v < eps {
@@ -118,7 +118,8 @@ func (f *Function) UseLogSpace() error {
 	return nil
 }
 
-// Eval returns the result of the function
+// Eval returns the result of the function, assuming that the values is in the
+// same order as f.Vars.
 func (f *Function) Eval(values []int) (float64, error) {
 	i, err := f.calcIndex(values)
 	if err != nil {

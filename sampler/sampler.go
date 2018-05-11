@@ -12,7 +12,7 @@ import (
 // sampled. Note that this call pattern (mutable param) parallels the samplers
 // in the gonum stats subpackags.
 type FullSampler interface {
-	Sample([]float64) error
+	Sample([]int) error
 }
 
 // A ValSampler returns a sample given a cardinality. We assume the possible
