@@ -18,9 +18,11 @@ TODO: rand sources during run get created using seed (if specified) - also need
 
 TODO: general
 
-TODO: discuss gonum
+TODO: discuss gonum (if we ever use it?)
 
 TODO: the make targets lint-install, sys-update, and update
+
+TODO: switch to something like the mersenne twister instead of the default rand source?
 
 # Hacking
 

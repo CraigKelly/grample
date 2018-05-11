@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -13,12 +14,18 @@ import (
 	"github.com/CraigKelly/grample/sampler"
 )
 
+// We want to cheat as little as possible, so we grab the start time ASAP
+var startTime = time.Now()
+
+// Parameters
 var verbose bool
 var uaiFile string
 var samplerName string
 var randomSeed int64
 var burnIn int64
 var maxIters int64
+var maxSecs int64
+var sampleRate float64
 var traceFile string
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -34,13 +41,19 @@ func Execute() {
   - An experimental version of an Adaptive Gibbs sampler
     `,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if sampleRate < 0.0 || sampleRate > 1.0 {
+				return errors.Errorf("Invalid sample rate %v: must be in the range (0.0, 1.0)", sampleRate)
+			}
+
 			fmt.Printf("grample\n")
-			fmt.Printf("Verbose:   %v\n", verbose)
-			fmt.Printf("Model:     %s\n", uaiFile)
-			fmt.Printf("Sampler:   %s\n", samplerName)
-			fmt.Printf("Burn In:   %12d\n", burnIn)
-			fmt.Printf("Max Iters: %12d\n", maxIters)
-			fmt.Printf("Rnd Seed:  %12d\n", randomSeed)
+			fmt.Printf("Verbose:     %v\n", verbose)
+			fmt.Printf("Model:       %s\n", uaiFile)
+			fmt.Printf("Sampler:     %s\n", samplerName)
+			fmt.Printf("Burn In:     %12d\n", burnIn)
+			fmt.Printf("Max Iters:   %12d\n", maxIters)
+			fmt.Printf("Max Secs:    %12d\n", maxSecs)
+			fmt.Printf("Accept Rate: %12.4f\n", sampleRate)
+			fmt.Printf("Rnd Seed:    %12d\n", randomSeed)
 
 			rand.Seed(randomSeed)
 
@@ -54,7 +67,9 @@ func Execute() {
 	rootCmd.PersistentFlags().StringVarP(&samplerName, "sampler", "s", "", "Name of sampler to use")
 	rootCmd.PersistentFlags().Int64VarP(&burnIn, "burnin", "b", 500, "Burn-In iteration count")
 	rootCmd.PersistentFlags().Int64VarP(&maxIters, "maxiters", "i", 20000, "Maximum iterations (not including burnin)")
+	rootCmd.PersistentFlags().Int64VarP(&maxSecs, "maxsecs", "x", 300, "Maximum seconds to run (0 for no maximum)")
 	rootCmd.PersistentFlags().StringVarP(&traceFile, "trace", "t", "", "Optional trace file: all samples written here")
+	rootCmd.PersistentFlags().Float64VarP(&sampleRate, "srate", "r", 0.20, "Rate at which samples are accepted (1.0 to accept all)")
 
 	rootCmd.MarkPersistentFlagRequired("model")
 	rootCmd.MarkPersistentFlagRequired("sampler")
@@ -88,6 +103,9 @@ func modelMarginals() error {
 		}
 	}
 
+	// For sampling acceptance rate
+	accept := rand.New(rand.NewSource(rand.Int63()))
+
 	// select sampler
 	if strings.ToLower(samplerName) == "gibbssimple" {
 		samp, err = sampler.NewGibbsSimple(rand.NewSource(rand.Int63()), mod)
@@ -119,37 +137,67 @@ func modelMarginals() error {
 	}
 
 	// Sampling: main iterations
-	// TODO: also have max time elapsed
 	// TODO: parallel chains
-	// TODO: single chain - only sample every x samples?
-	fmt.Printf("Sampling until max iter %d\n", maxIters)
-	for it := int64(1); it <= maxIters; it++ {
+	fmt.Printf("Main Sampling Start\n")
+
+	stopTime := startTime.Add(time.Duration(maxSecs) * time.Second)
+	untilStatus := time.Duration(2) * time.Second
+	nextStatus := startTime.Add(untilStatus)
+
+	it := int64(1)
+	sampleCount := int64(0)
+	for {
 		err = samp.Sample(oneSample)
 		if err != nil {
 			return errors.Wrapf(err, "Error during main iteration it %d", it)
 		}
 
-		// Write trace if necessary
-		if trace != nil {
-			fmt.Fprintf(trace, "%v\n", oneSample)
+		// Only trace and update marginals if we accept the sample
+		if accept.Float64() <= sampleRate {
+			sampleCount++
+
+			if trace != nil {
+				fmt.Fprintf(trace, "%v\n", oneSample)
+			}
+
+			for i, v := range mod.Vars {
+				v.Marginal[oneSample[i]] += 1.0
+			}
 		}
 
-		// Update variable marginals
-		for i, v := range mod.Vars {
-			v.Marginal[oneSample[i]] += 1.0
+		// Time checking and status updates
+		now := time.Now()
+		if maxSecs > 0 && now.After(stopTime) {
+			fmt.Printf("Reached stop time %v\n", stopTime)
+			break
 		}
 
-		// TODO: make output time based OR iteration based
-		// TODO: iteration count and time elapsed gets smaller if verbose
-		if it%5000 == 0 {
-			fmt.Printf("  Iterations: %12d\n", it)
+		doStatus := false
+		if verbose {
+			doStatus = it%1000 == 0
+		} else {
+			doStatus = now.After(nextStatus)
+			if doStatus {
+				nextStatus = now.Add(untilStatus)
+			}
+		}
+
+		if doStatus {
+			fmt.Printf("  Iterations: %12d | Samples: %12d | Run time %v\n", it, sampleCount, now.Sub(startTime))
+		}
+
+		// Don't forget to check iterations!
+		it++
+		if maxIters > 0 && it > maxIters {
+			break
 		}
 	}
 
 	// Output the marginals we found
 	// TODO: write to a UAI MAR file
 	// TODO: output comparison to a previous MAR file (should be known good)
-	fmt.Printf("Done. Marginals:\n")
+	fmt.Printf("  Iterations: %12d | Samples: %12d | Run time %v\n", it, sampleCount, time.Now().Sub(startTime))
+	fmt.Printf("Done => Marginals:\n")
 	for _, v := range mod.Vars {
 		fmt.Printf("Variable[%d] %s (Card:%d, SelCount:%d)\n", v.ID, v.Name, v.Card, v.Counter)
 		v.NormMarginal()
