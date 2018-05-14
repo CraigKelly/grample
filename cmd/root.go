@@ -69,6 +69,8 @@ func Execute() {
 
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Verbose logging (default is much more parsimonious)")
 
+	rootCmd.PersistentFlags().Int64VarP(&randomSeed, "seed", "e", 1, "Random seed to use")
+
 	rootCmd.PersistentFlags().StringVarP(&uaiFile, "model", "m", "", "UAI model file to read")
 	rootCmd.PersistentFlags().StringVarP(&solFile, "solution", "o", "", "UAI MAR solution file to use for scoring")
 	rootCmd.PersistentFlags().StringVarP(&samplerName, "sampler", "s", "", "Name of sampler to use")
@@ -217,7 +219,7 @@ func modelMarginals() error {
 		}
 
 		// Status update
-		if now.After(nextStatus) || !keepWorking || it == 10 {
+		if now.After(nextStatus) || !keepWorking {
 			nextStatus = now.Add(untilStatus)
 
 			evalReport := "---"

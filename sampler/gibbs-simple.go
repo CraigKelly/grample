@@ -35,16 +35,16 @@ func NewGibbsSimple(src rand.Source, m *model.Model) (*GibbsSimple, error) {
 		return nil, errors.Wrap(err, "Failed to create uniform sampler in Gibbs Simple sample")
 	}
 
-    // We need an array of inys the size of our variables a LOT and run
-    // parallel chains. This pool keeps our allocations low.
+	// We need an array of inys the size of our variables a LOT and run
+	// parallel chains. This pool keeps our allocations low.
 	varPool := &sync.Pool{
 		New: func() interface{} {
 			return make([]int, len(m.Vars))
 		},
 	}
 
-    // We also use an array for holding counts across a variable's cardinality
-    // (NOTE that these actually *ARE* floats)
+	// We also use an array for holding counts across a variable's cardinality
+	// (NOTE that these actually *ARE* floats)
 	maxCard := 0
 	for _, v := range m.Vars {
 		if v.Card > maxCard {
