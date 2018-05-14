@@ -28,6 +28,18 @@ var maxSecs int64
 var sampleRate float64
 var traceFile string
 
+func startupParms() {
+	fmt.Printf("Verbose:     %v\n", verbose)
+	fmt.Printf("Model:       %s\n", uaiFile)
+	fmt.Printf("Sampler:     %s\n", samplerName)
+	fmt.Printf("Burn In:     %12d\n", burnIn)
+	fmt.Printf("Max Iters:   %12d\n", maxIters)
+	fmt.Printf("Max Secs:    %12d\n", maxSecs)
+	fmt.Printf("Accept Rate: %12.4f\n", sampleRate)
+	fmt.Printf("Rnd Seed:    %12d\n", randomSeed)
+
+}
+
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
@@ -41,22 +53,13 @@ func Execute() {
   - An experimental version of an Adaptive Gibbs sampler
     `,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if sampleRate < 0.0 || sampleRate > 1.0 {
+			fmt.Printf("grample\n")
+
+			if sampleRate > 1.0 {
 				return errors.Errorf("Invalid sample rate %v: must be in the range (0.0, 1.0)", sampleRate)
 			}
 
-			fmt.Printf("grample\n")
-			fmt.Printf("Verbose:     %v\n", verbose)
-			fmt.Printf("Model:       %s\n", uaiFile)
-			fmt.Printf("Sampler:     %s\n", samplerName)
-			fmt.Printf("Burn In:     %12d\n", burnIn)
-			fmt.Printf("Max Iters:   %12d\n", maxIters)
-			fmt.Printf("Max Secs:    %12d\n", maxSecs)
-			fmt.Printf("Accept Rate: %12.4f\n", sampleRate)
-			fmt.Printf("Rnd Seed:    %12d\n", randomSeed)
-
 			rand.Seed(randomSeed)
-
 			return modelMarginals()
 		},
 	}
@@ -65,11 +68,11 @@ func Execute() {
 
 	rootCmd.PersistentFlags().StringVarP(&uaiFile, "model", "m", "", "UAI model file to read")
 	rootCmd.PersistentFlags().StringVarP(&samplerName, "sampler", "s", "", "Name of sampler to use")
-	rootCmd.PersistentFlags().Int64VarP(&burnIn, "burnin", "b", 500, "Burn-In iteration count")
-	rootCmd.PersistentFlags().Int64VarP(&maxIters, "maxiters", "i", 20000, "Maximum iterations (not including burnin)")
+	rootCmd.PersistentFlags().Int64VarP(&burnIn, "burnin", "b", -1, "Burn-In iteration count - if < 0, will use 2000*n (n= # vars)")
+	rootCmd.PersistentFlags().Int64VarP(&maxIters, "maxiters", "i", 0, "Maximum iterations (not including burnin) 0 if < 0 will use 20000*n")
 	rootCmd.PersistentFlags().Int64VarP(&maxSecs, "maxsecs", "x", 300, "Maximum seconds to run (0 for no maximum)")
 	rootCmd.PersistentFlags().StringVarP(&traceFile, "trace", "t", "", "Optional trace file: all samples written here")
-	rootCmd.PersistentFlags().Float64VarP(&sampleRate, "srate", "r", 0.20, "Rate at which samples are accepted (1.0 to accept all)")
+	rootCmd.PersistentFlags().Float64VarP(&sampleRate, "srate", "r", -1.0, "Rate at which samples are accepted (1.0 to accept all) - if < 0, will use 1/n")
 
 	rootCmd.MarkPersistentFlagRequired("model")
 	rootCmd.MarkPersistentFlagRequired("sampler")
@@ -102,6 +105,20 @@ func modelMarginals() error {
 			fmt.Printf("  %+v\n", f)
 		}
 	}
+
+	// Some of our parameters are based on variable count
+	if sampleRate <= 0.0 {
+		sampleRate = 1.0 / float64(len(mod.Vars))
+	}
+	if burnIn < 0 {
+		burnIn = int64(2000 * len(mod.Vars))
+	}
+	if maxIters < 0 {
+		maxIters = int64(20000 * len(mod.Vars))
+	}
+
+	// Report what's going on
+	startupParms()
 
 	// For sampling acceptance rate
 	accept := rand.New(rand.NewSource(rand.Int63()))
