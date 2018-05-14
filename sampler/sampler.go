@@ -1,9 +1,8 @@
 package sampler
 
 import (
-	"math/rand"
-
 	"github.com/CraigKelly/grample/model"
+	"github.com/CraigKelly/grample/rand"
 	"github.com/pkg/errors"
 )
 
@@ -28,15 +27,13 @@ type VarSampler interface {
 
 // UniformSampler provides uniform sampling for our interfaces
 type UniformSampler struct {
-	src rand.Source
-	rnd *rand.Rand
+	gen *rand.Generator
 }
 
 // NewUniformSampler creates a new uniform sampler
-func NewUniformSampler(src rand.Source) (*UniformSampler, error) {
+func NewUniformSampler(gen *rand.Generator) (*UniformSampler, error) {
 	s := &UniformSampler{
-		src: src,
-		rnd: rand.New(src),
+		gen: gen,
 	}
 	return s, nil
 }
@@ -50,7 +47,7 @@ func (s *UniformSampler) ValSample(card int) (int, error) {
 		return 0, nil
 	}
 
-	return int(s.rnd.Int31n(int32(card))), nil
+	return int(s.gen.Int31n(int32(card))), nil
 }
 
 // VarSample implements VarSample interface

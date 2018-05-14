@@ -1,18 +1,20 @@
 package sampler
 
 import (
-	"math/rand"
 	"testing"
 
 	"github.com/CraigKelly/grample/model"
+	"github.com/CraigKelly/grample/rand"
+
 	"github.com/stretchr/testify/assert"
 )
 
 func TestUniformSampler(t *testing.T) {
 	assert := assert.New(t)
 
-	r := rand.NewSource(42)
-	uni, err := NewUniformSampler(r)
+	gen, err := rand.NewGenerator(42)
+	assert.NoError(err)
+	uni, err := NewUniformSampler(gen)
 	assert.NoError(err)
 
 	var i int

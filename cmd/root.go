@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"math"
-	"math/rand"
 	"os"
 	"strings"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/CraigKelly/grample/model"
+	"github.com/CraigKelly/grample/rand"
 	"github.com/CraigKelly/grample/sampler"
 )
 
@@ -62,7 +62,6 @@ func Execute() {
 				return errors.Errorf("Invalid sample rate %v: must be in the range (0.0, 1.0)", sampleRate)
 			}
 
-			rand.Seed(randomSeed)
 			return modelMarginals()
 		},
 	}
@@ -142,12 +141,15 @@ func modelMarginals() error {
 	// Report what's going on
 	startupParms()
 
-	// For sampling acceptance rate
-	accept := rand.New(rand.NewSource(rand.Int63()))
+	// Create our concurrent PRNG
+	gen, err := rand.NewGenerator(randomSeed)
+	if err != nil {
+		return errors.Wrapf(err, "Could not create Generator from seed %d", randomSeed)
+	}
 
 	// select sampler
 	if strings.ToLower(samplerName) == "gibbssimple" {
-		samp, err = sampler.NewGibbsSimple(rand.NewSource(rand.Int63()), mod)
+		samp, err = sampler.NewGibbsSimple(gen, mod)
 		if err != nil {
 			return errors.Wrapf(err, "Could not create %s", samplerName)
 		}
@@ -193,7 +195,7 @@ func modelMarginals() error {
 		}
 
 		// Only trace and update marginals if we accept the sample
-		if accept.Float64() <= sampleRate {
+		if gen.Float64() <= sampleRate {
 			sampleCount++
 
 			if trace != nil {

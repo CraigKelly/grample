@@ -2,17 +2,16 @@ package sampler
 
 import (
 	"math"
-	"math/rand"
 	"sync"
 
 	"github.com/CraigKelly/grample/model"
+	"github.com/CraigKelly/grample/rand"
 	"github.com/pkg/errors"
 )
 
 // GibbsSimple is our baseline, simple to code Gibbs sampler
 type GibbsSimple struct {
-	src         rand.Source
-	rnd         *rand.Rand
+	gen         *rand.Generator
 	pgm         *model.Model
 	varSelector VarSampler
 	varFuncs    map[int][]*model.Function
@@ -24,13 +23,13 @@ type GibbsSimple struct {
 // TODO: unit test error handling and getting at least one good sample
 
 // NewGibbsSimple creates a new sampler
-func NewGibbsSimple(src rand.Source, m *model.Model) (*GibbsSimple, error) {
+func NewGibbsSimple(gen *rand.Generator, m *model.Model) (*GibbsSimple, error) {
 	if m == nil {
 		return nil, errors.New("No model supplied")
 	}
 
 	// Select variable uniformly at random at each step
-	uniform, err := NewUniformSampler(src)
+	uniform, err := NewUniformSampler(gen)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create uniform sampler in Gibbs Simple sample")
 	}
@@ -58,8 +57,7 @@ func NewGibbsSimple(src rand.Source, m *model.Model) (*GibbsSimple, error) {
 	}
 
 	s := &GibbsSimple{
-		src:         src,
-		rnd:         rand.New(src),
+		gen:         gen,
 		pgm:         m,
 		varSelector: uniform,
 		varFuncs:    make(map[int][]*model.Function),
@@ -178,7 +176,7 @@ func (g *GibbsSimple) Sample(s []int) error {
 	}
 
 	// Select value based on the factor weights for our current variable
-	r := g.rnd.Float64() * totWeights
+	r := g.gen.Float64() * totWeights
 	nextVal := -1
 	for i, w := range sampleWeights {
 		if r <= w {
