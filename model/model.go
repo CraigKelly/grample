@@ -144,19 +144,33 @@ func (s *Solution) Check(m *Model) error {
 	return nil
 }
 
-// Score returns the current value of the given evaluation metric. The model
-// variables are assumed to be normalized.
-// TODO: Norm the model vars externally so that we can call this in progress
+// Score returns the current value of the given evaluation metric. While the
+// solution marginal is assumed to be normalized, the model variables probably
+// will NOT be normalized.
 func (s *Solution) Score(m *Model) (float64, error) {
 	if len(s.Vars) != len(m.Vars) {
 		return 0.0, errors.Errorf("Solution var count %d != model var count %d", len(s.Vars), len(m.Vars))
 	}
-	tot := float64(0.0)
+
+	totErr := float64(0.0)
+	const eps = float64(1e-12)
+
 	for i, v := range m.Vars {
+		// get total for normalizing
+		tot := float64(0.0)
 		for c := 0; c < v.Card; c++ {
-			tot += math.Abs(v.Marginal[c] - s.Vars[i].Marginal[c])
+			tot += v.Marginal[c]
+		}
+		if tot < eps {
+			tot = eps
+		}
+
+		// accumulate error (normalizing model var)
+		for c := 0; c < v.Card; c++ {
+			modelVal := v.Marginal[c] / tot
+			totErr += math.Abs(modelVal - s.Vars[i].Marginal[c])
 		}
 	}
 
-	return tot / float64(len(s.Vars)), nil
+	return totErr / float64(len(s.Vars)), nil
 }

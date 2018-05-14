@@ -138,18 +138,27 @@ func (r UAIReader) ReadModel(data []byte) (*Model, error) {
 
 // ReadMargSolution implements the model.SolReader interface
 func (r UAIReader) ReadMargSolution(data []byte) (*Solution, error) {
-	// We counted: 1 var with card 1 is 1 1 1.0.
-	if len(data) < 7 {
-		return nil, errors.Errorf("Invalid data buffer: len=%d (<7)", len(data))
+	// We counted: 1 var with card 1 is MAR 1 1 1.0
+	if len(data) < 11 {
+		return nil, errors.Errorf("Invalid data buffer: len=%d (<11)", len(data))
 	}
 
 	// A minimal solution will have 3 fields
 	fr := NewFieldReader(data)
-	if len(fr.Fields) < 3 {
-		return nil, errors.Errorf("Invalid data: only %d fields found (<6)", len(fr.Fields))
+	if len(fr.Fields) < 4 {
+		return nil, errors.Errorf("Invalid data: only %d fields found (<4)", len(fr.Fields))
 	}
 
 	var err error
+
+	// Check solution type
+	solType, err := fr.Read()
+	if err != nil {
+		return nil, errors.Wrap(err, "Could not understand file")
+	}
+	if solType != "MAR" {
+		return nil, errors.Errorf("Unknown solution file type %s", solType)
+	}
 
 	// Read variable count
 	var varCount int

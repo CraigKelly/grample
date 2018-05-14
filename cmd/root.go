@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"os"
 	"strings"
@@ -122,7 +123,7 @@ func modelMarginals() error {
 			return errors.Wrapf(err, "Error calculation init score on startup")
 		}
 
-		fmt.Printf("Starting eval metric (worst case): %.6f\n", score)
+		fmt.Printf("Starting eval metric (worst case): %.6f nlog=%.3f\n", score, -math.Log(score))
 	}
 
 	// Some of our parameters are based on variable count
@@ -182,7 +183,8 @@ func modelMarginals() error {
 
 	it := int64(1)
 	sampleCount := int64(0)
-	for {
+	keepWorking := true
+	for keepWorking {
 		err = samp.Sample(oneSample)
 		if err != nil {
 			return errors.Wrapf(err, "Error during main iteration it %d", it)
@@ -205,49 +207,51 @@ func modelMarginals() error {
 		now := time.Now()
 		if maxSecs > 0 && now.After(stopTime) {
 			fmt.Printf("Reached stop time %v\n", stopTime)
-			break
-		}
-
-		doStatus := false
-		if verbose {
-			doStatus = it%1000 == 0
-		} else {
-			doStatus = now.After(nextStatus)
-			if doStatus {
-				nextStatus = now.Add(untilStatus)
-			}
-		}
-
-		if doStatus {
-			fmt.Printf("  Iterations: %12d | Samples: %12d | Run time %v\n", it, sampleCount, now.Sub(startTime))
+			keepWorking = false
 		}
 
 		// Don't forget to check iterations!
 		it++
 		if maxIters > 0 && it > maxIters {
-			break
+			keepWorking = false
+		}
+
+		// Status update
+		if now.After(nextStatus) || !keepWorking || it == 10 {
+			nextStatus = now.Add(untilStatus)
+
+			evalReport := "---"
+			if len(solFile) > 1 {
+				score, err := sol.Score(mod)
+				if err != nil {
+					return errors.Wrapf(err, "Error calculating score")
+				}
+				evalReport = fmt.Sprintf("%8.6f nlog=%.3f", score, -math.Log(score))
+			}
+
+			fmt.Printf(
+				"  Iterations: %12d | Samples: %12d | Run time %12.2fsec | Eval %s\n",
+				it, sampleCount, time.Now().Sub(startTime).Seconds(), evalReport,
+			)
 		}
 	}
 
-	// Output the marginals we found
+	// Output the marginals we found and our final evaluation
 	// TODO: write to a UAI MAR file
-	// TODO: output comparison to a previous MAR file (should be known good)
-	fmt.Printf("  Iterations: %12d | Samples: %12d | Run time %v\n", it, sampleCount, time.Now().Sub(startTime))
+	fmt.Printf("Done => Marginals:\n")
+	for _, v := range mod.Vars {
+		fmt.Printf("Variable[%d] %s (Card:%d, SelCount:%d)\n", v.ID, v.Name, v.Card, v.Counter)
+		v.NormMarginal()
+		fmt.Printf("%+v\n", v.Marginal)
+	}
 
 	if len(solFile) > 0 {
 		score, err := sol.Score(mod)
 		if err != nil {
 			fmt.Printf("Error calculating final score! Will continue: error %+v", err)
 		} else {
-			fmt.Printf("Final eval metric (worst case): %.6f\n", score)
+			fmt.Printf("Final eval metric (worst case): %.6f nlog=%.3f\n", score, -math.Log(score))
 		}
-	}
-
-	fmt.Printf("Done => Marginals:\n")
-	for _, v := range mod.Vars {
-		fmt.Printf("Variable[%d] %s (Card:%d, SelCount:%d)\n", v.ID, v.Name, v.Card, v.Counter)
-		v.NormMarginal()
-		fmt.Printf("%+v\n", v.Marginal)
 	}
 
 	return nil
