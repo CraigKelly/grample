@@ -2,6 +2,7 @@ package model
 
 import (
 	"io/ioutil"
+	"math"
 	"path/filepath"
 
 	"github.com/pkg/errors"
@@ -16,6 +17,11 @@ const (
 // Reader implementors instantiate a model from a byte stream
 type Reader interface {
 	ReadModel(data []byte) (*Model, error)
+}
+
+// SolReader implementors read a solution (currently we only support marginal solutions)
+type SolReader interface {
+	ReadMargSolution(data []byte) (*Solution, error)
 }
 
 // TODO: Evidence reader
@@ -63,7 +69,7 @@ func NewModelFromBuffer(r Reader, data []byte) (*Model, error) {
 }
 
 // Check returns an error if there is a problem with the model
-func (m Model) Check() error {
+func (m *Model) Check() error {
 	if m.Type != BAYES && m.Type != MARKOV {
 		return errors.Errorf("Unknown model type %s", m.Type)
 	}
@@ -90,4 +96,67 @@ func (m Model) Check() error {
 	}
 
 	return nil
+}
+
+// Solution to a marginal estimation problem specified on a Model
+type Solution struct {
+	Vars []*Variable // Variables with their marginals
+}
+
+// NewSolutionFromFile reads a UAI MAR solution file
+func NewSolutionFromFile(r SolReader, filename string) (*Solution, error) {
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not READ solution from %s", filename)
+	}
+
+	sol, err := NewSolutionFromBuffer(r, data)
+	if err != nil {
+		return nil, err
+	}
+
+	return sol, nil
+}
+
+// NewSolutionFromBuffer reads a UAI MAR solution file from the specified buffer
+func NewSolutionFromBuffer(r SolReader, data []byte) (*Solution, error) {
+	s, err := r.ReadMargSolution(data)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Could not PARSE solution")
+	}
+
+	return s, nil
+}
+
+// Check insures that the solution is as correct as can be checked given a model
+func (s *Solution) Check(m *Model) error {
+	for _, v := range s.Vars {
+		e := v.Check()
+		if e != nil {
+			return errors.Wrapf(e, "Solution has an invalid Variable %s", v.Name)
+		}
+	}
+
+	if len(s.Vars) != len(m.Vars) {
+		return errors.Errorf("Solution var count %d != model var count %d", len(s.Vars), len(m.Vars))
+	}
+
+	return nil
+}
+
+// Score returns the current value of the given evaluation metric. The model
+// variables are assumed to be normalized.
+// TODO: Norm the model vars externally so that we can call this in progress
+func (s *Solution) Score(m *Model) (float64, error) {
+	if len(s.Vars) != len(m.Vars) {
+		return 0.0, errors.Errorf("Solution var count %d != model var count %d", len(s.Vars), len(m.Vars))
+	}
+	tot := float64(0.0)
+	for i, v := range m.Vars {
+		for c := 0; c < v.Card; c++ {
+			tot += math.Abs(v.Marginal[c] - s.Vars[i].Marginal[c])
+		}
+	}
+
+	return tot / float64(len(s.Vars)), nil
 }

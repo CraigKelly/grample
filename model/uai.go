@@ -135,3 +135,70 @@ func (r UAIReader) ReadModel(data []byte) (*Model, error) {
 	// Finally all done - we leave it to our caller to perform final checking
 	return m, nil
 }
+
+// ReadMargSolution implements the model.SolReader interface
+func (r UAIReader) ReadMargSolution(data []byte) (*Solution, error) {
+	// We counted: 1 var with card 1 is 1 1 1.0.
+	if len(data) < 7 {
+		return nil, errors.Errorf("Invalid data buffer: len=%d (<7)", len(data))
+	}
+
+	// A minimal solution will have 3 fields
+	fr := NewFieldReader(data)
+	if len(fr.Fields) < 3 {
+		return nil, errors.Errorf("Invalid data: only %d fields found (<6)", len(fr.Fields))
+	}
+
+	var err error
+
+	// Read variable count
+	var varCount int
+	varCount, err = fr.ReadInt()
+	if err != nil {
+		return nil, errors.Wrap(err, "Error reading UAI MAR Solution Variable Count")
+	}
+	if varCount < 1 {
+		return nil, errors.Errorf("Invalid variable count: %d", varCount)
+	}
+
+	// Read variables and their marginals
+	sol := &Solution{
+		Vars: make([]*Variable, varCount),
+	}
+
+	var card int
+	for i := 0; i < varCount; i++ {
+		card, err = fr.ReadInt()
+		if err != nil {
+			return nil, errors.Wrapf(err, "Error reading Card for var %d", i)
+		}
+		if card < 1 {
+			return nil, errors.Errorf("Invalid card %d for var %d", card, i)
+		}
+
+		sol.Vars[i], err = NewVariable(i, card)
+		if err != nil {
+			return nil, errors.Wrapf(err, "Could not create variable from UAI MAR Sol file")
+		}
+
+		var p float64
+		for m := 0; m < card; m++ {
+			p, err = fr.ReadFloat()
+			if err != nil {
+				return nil, errors.Wrapf(err, "Could not read marg prob %d on var %d (%s)", m, i, sol.Vars[i].Name)
+			}
+			if p < 0.0 || p > 1.0 {
+				return nil, errors.Wrapf(err, "Invalid p=%f marg prob %d on var %d (%s)", p, m, i, sol.Vars[i].Name)
+			}
+			sol.Vars[i].Marginal[m] = p
+		}
+
+		err = sol.Vars[i].NormMarginal()
+		if err != nil {
+			return nil, errors.Wrapf(err, "Marginal Invalid on var %d (%s)", i, sol.Vars[i].Name)
+		}
+	}
+
+	// Finally all done - we leave it to our caller to perform final checking
+	return sol, nil
+}

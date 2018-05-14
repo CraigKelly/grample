@@ -20,6 +20,7 @@ var startTime = time.Now()
 // Parameters
 var verbose bool
 var uaiFile string
+var solFile string
 var samplerName string
 var randomSeed int64
 var burnIn int64
@@ -31,6 +32,7 @@ var traceFile string
 func startupParms() {
 	fmt.Printf("Verbose:     %v\n", verbose)
 	fmt.Printf("Model:       %s\n", uaiFile)
+	fmt.Printf("Solution:    %s\n", solFile)
 	fmt.Printf("Sampler:     %s\n", samplerName)
 	fmt.Printf("Burn In:     %12d\n", burnIn)
 	fmt.Printf("Max Iters:   %12d\n", maxIters)
@@ -67,6 +69,7 @@ func Execute() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Verbose logging (default is much more parsimonious)")
 
 	rootCmd.PersistentFlags().StringVarP(&uaiFile, "model", "m", "", "UAI model file to read")
+	rootCmd.PersistentFlags().StringVarP(&solFile, "solution", "o", "", "UAI MAR solution file to use for scoring")
 	rootCmd.PersistentFlags().StringVarP(&samplerName, "sampler", "s", "", "Name of sampler to use")
 	rootCmd.PersistentFlags().Int64VarP(&burnIn, "burnin", "b", -1, "Burn-In iteration count - if < 0, will use 2000*n (n= # vars)")
 	rootCmd.PersistentFlags().Int64VarP(&maxIters, "maxiters", "i", 0, "Maximum iterations (not including burnin) 0 if < 0 will use 20000*n")
@@ -86,6 +89,7 @@ func Execute() {
 // Our current default action (and the only one we support)
 func modelMarginals() error {
 	var mod *model.Model
+	var sol *model.Solution
 	var err error
 	var samp sampler.FullSampler
 
@@ -104,6 +108,21 @@ func modelMarginals() error {
 		for _, f := range mod.Funcs {
 			fmt.Printf("  %+v\n", f)
 		}
+	}
+
+	// Read solution file (if we have one)
+	if len(solFile) > 0 {
+		sol, err = model.NewSolutionFromFile(reader, solFile)
+		if err != nil {
+			return errors.Wrapf(err, "Could not read solution file %s", solFile)
+		}
+
+		score, err := sol.Score(mod)
+		if err != nil {
+			return errors.Wrapf(err, "Error calculation init score on startup")
+		}
+
+		fmt.Printf("Starting eval metric (worst case): %.6f\n", score)
 	}
 
 	// Some of our parameters are based on variable count
@@ -214,6 +233,16 @@ func modelMarginals() error {
 	// TODO: write to a UAI MAR file
 	// TODO: output comparison to a previous MAR file (should be known good)
 	fmt.Printf("  Iterations: %12d | Samples: %12d | Run time %v\n", it, sampleCount, time.Now().Sub(startTime))
+
+	if len(solFile) > 0 {
+		score, err := sol.Score(mod)
+		if err != nil {
+			fmt.Printf("Error calculating final score! Will continue: error %+v", err)
+		} else {
+			fmt.Printf("Final eval metric (worst case): %.6f\n", score)
+		}
+	}
+
 	fmt.Printf("Done => Marginals:\n")
 	for _, v := range mod.Vars {
 		fmt.Printf("Variable[%d] %s (Card:%d, SelCount:%d)\n", v.ID, v.Name, v.Card, v.Counter)
