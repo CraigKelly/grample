@@ -1,10 +1,6 @@
 package model
 
 import (
-	"io"
-	"strconv"
-	"strings"
-
 	"github.com/pkg/errors"
 )
 
@@ -24,7 +20,7 @@ func (r UAIReader) ReadModel(data []byte) (*Model, error) {
 	}
 
 	// A minimal model will have 6 fields
-	fr := newFieldReader(data)
+	fr := NewFieldReader(data)
 	if len(fr.Fields) < 6 {
 		return nil, errors.Errorf("Invalid data: only %d fields found (<6)", len(fr.Fields))
 	}
@@ -138,43 +134,4 @@ func (r UAIReader) ReadModel(data []byte) (*Model, error) {
 
 	// Finally all done - we leave it to our caller to perform final checking
 	return m, nil
-}
-
-// fieldReader is just a simple reader for basic file formats.
-// TODO: extract this somewhere when we can read more file formats.
-type fieldReader struct {
-	Pos    int
-	Fields []string
-}
-
-func newFieldReader(data []byte) *fieldReader {
-	return &fieldReader{0, strings.Fields(string(data))}
-}
-
-func (fr *fieldReader) Read() (string, error) {
-	if fr.Pos >= len(fr.Fields) {
-		return "", io.EOF
-	}
-	p := fr.Pos
-	fr.Pos++
-	return fr.Fields[p], nil
-}
-
-func (fr *fieldReader) ReadInt() (int, error) {
-	s, err := fr.Read()
-	if err != nil {
-		return 0, err
-	}
-
-	i, err := strconv.ParseInt(s, 10, 0)
-	return int(i), err
-}
-
-func (fr *fieldReader) ReadFloat() (float64, error) {
-	s, err := fr.Read()
-	if err != nil {
-		return 0, err
-	}
-
-	return strconv.ParseFloat(s, 64)
 }
