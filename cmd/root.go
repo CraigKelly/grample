@@ -190,7 +190,6 @@ func modelMarginals() error {
 	}
 
 	// Sampling: main iterations
-	// TODO: parallel chains
 	fmt.Printf("Main Sampling Start\n")
 
 	stopTime := startTime.Add(time.Duration(maxSecs) * time.Second)
