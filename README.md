@@ -5,14 +5,17 @@ subtitle: Sampling for Probabilistic Graphical Models
 
 # Introduction
 
-TODO
+TODO: this doc
+
+TODO: a readme for all the other folders
+
+TODO: brief summary of all the other folders
 
 # Architecture Overview
 
 TODO: general description
 
-TODO: rand sources during run get created using seed (if specified) - also need
-      note about the fact that NewSource sources are NOT safe for concurrent access
+TODO: rand usage (see rand package)
 
 # Dependencies
 
