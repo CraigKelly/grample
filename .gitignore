@@ -2,6 +2,7 @@ grample
 .tested
 *.swp
 cover.html
+*.json
 
 # Binaries for programs and plugins
 *.exe
