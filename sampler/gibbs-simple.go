@@ -83,6 +83,9 @@ func NewGibbsSimple(gen *rand.Generator, m *model.Model) (*GibbsSimple, error) {
 	// will return the next sample, and not this one so our user will never
 	// see this starting point unless they explicitly look for it.
 	for i, v := range s.pgm.Vars {
+		// Init any variable state that we track
+		v.State["Selections"] = 0.0 // Number of times selected for sampling
+
 		// Check on pgm vars to make sure they are set up the way we expect
 		if i != v.ID {
 			// ID should match index in PGM model
@@ -117,7 +120,7 @@ func (g *GibbsSimple) Sample(s []int) error {
 		return errors.Wrapf(err, "Could not sample from vars in model %s", g.pgm.Name)
 	}
 	sampleVar := g.pgm.Vars[varIdx]
-	sampleVar.Counter++
+	sampleVar.State["Selections"] += 1.0
 
 	// Find all related factors and marginalize for sampleVar
 

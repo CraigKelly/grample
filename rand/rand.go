@@ -14,7 +14,7 @@ type Generator struct {
 
 // NewGenerator starts a new background PRNG based on the given seed
 func NewGenerator(seed int64) (*Generator, error) {
-	numChan := make(chan int64, 512)
+	numChan := make(chan int64, 1024)
 
 	go func() {
 		r := rand.New(rand.NewSource(seed))

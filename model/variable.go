@@ -8,11 +8,11 @@ import (
 
 // Variable represents a single node in a PGM, a random variable, or a marginal distribution.
 type Variable struct {
-	ID       int       // A numeric ID for tracking a variable
-	Name     string    // Variable name (just a zero-based index in UAI formats)
-	Card     int       // Cardinality - values are assume to be 0 to Card-1
-	Counter  int       // Helpful counter field - currently used by samplers
-	Marginal []float64 // Current best estimate for marginal distribution: len should equal Card
+	ID       int                // A numeric ID for tracking a variable
+	Name     string             // Variable name (just a zero-based index in UAI formats)
+	Card     int                // Cardinality - values are assume to be 0 to Card-1
+	Marginal []float64          // Current best estimate for marginal distribution: len should equal Card
+	State    map[string]float64 // State/stats a sampler can track - mainly for JSON tracking
 }
 
 // NewVariable is our standard way to create a variable from an index and a
@@ -30,6 +30,7 @@ func NewVariable(index int, card int) (*Variable, error) {
 		Name:     "",
 		Card:     card,
 		Marginal: make([]float64, card),
+		State:    make(map[string]float64),
 	}
 
 	var err error

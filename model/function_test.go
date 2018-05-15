@@ -7,15 +7,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func testVars() (v0, v1, v2, v3 *Variable) {
+	v0 = &Variable{0, "V0", 0, []float64{}, nil}
+	v1 = &Variable{1, "V1", 1, []float64{1.0}, nil}
+	v2 = &Variable{2, "V2", 2, []float64{0.25, 0.75}, nil}
+	v3 = &Variable{3, "V2", 3, []float64{0.25, 0.70, 0.05}, nil}
+	return
+}
+
 // Make sure that Check actually catches problems
 func TestFuncBadCheck(t *testing.T) {
 	assert := assert.New(t)
 
 	// handy short vars for below
-	v0 := &Variable{0, "V0", 0, 0, []float64{}}
-	v1 := &Variable{1, "V1", 1, 0, []float64{1.0}}
-	v2 := &Variable{2, "V2", 2, 0, []float64{0.25, 0.75}}
-	v3 := &Variable{3, "V2", 3, 0, []float64{0.25, 0.70, 0.05}}
+	v0, v1, v2, v3 := testVars()
 
 	// quick sanity check
 	assert.NoError(v0.Check())
@@ -48,9 +53,7 @@ func TestFuncGoodCheck(t *testing.T) {
 	assert := assert.New(t)
 
 	// handy short vars for below
-	v1 := &Variable{0, "V1", 1, 0, []float64{1.0}}
-	v2 := &Variable{1, "V2", 2, 0, []float64{0.25, 0.75}}
-	v3 := &Variable{2, "V2", 3, 0, []float64{0.25, 0.70, 0.05}}
+	_, v1, v2, v3 := testVars()
 
 	// quick sanity check
 	assert.NoError(v1.Check())
@@ -79,8 +82,7 @@ func TestFuncTestEval(t *testing.T) {
 	assert := assert.New(t)
 
 	// handy short vars for below
-	v2 := &Variable{0, "V2", 2, 0, []float64{0.25, 0.75}}
-	v3 := &Variable{1, "V2", 3, 0, []float64{0.25, 0.70, 0.05}}
+	_, _, v2, v3 := testVars()
 
 	// quick sanity check
 	assert.NoError(v2.Check())

@@ -7,8 +7,8 @@ import (
 )
 
 func vanillaModel() *Model {
-	v1 := &Variable{0, "V1", 2, 0, []float64{0.5, 0.5}}
-	v2 := &Variable{1, "V2", 2, 0, []float64{0.5, 0.5}}
+	v1 := &Variable{0, "V1", 2, []float64{0.5, 0.5}, nil}
+	v2 := &Variable{1, "V2", 2, []float64{0.5, 0.5}, nil}
 
 	f1 := &Function{"F1", []*Variable{v1, v2}, []float64{1.1, 2.2, 3.3, 4.4}, false}
 	f2 := &Function{"F2", []*Variable{v1, v2}, []float64{0.1, 0.2, 0.3, 0.4}, false}

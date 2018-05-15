@@ -31,7 +31,7 @@ type Model struct {
 	Type  string      // PGM type - should match a constant
 	Name  string      // Model name
 	Vars  []*Variable // Variables (nodes) in the model
-	Funcs []*Function // Function of variables (CPT) in the model
+	Funcs []*Function `json:"-"` // Function of variables (CPT) in the model
 }
 
 // NewModelFromFile initializes and creates a model from the specified source.

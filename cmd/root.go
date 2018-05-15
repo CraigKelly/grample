@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -170,10 +171,15 @@ func modelMarginals() error {
 
 	// Trace file
 	var trace *os.File
+	var traceObj *json.Encoder
 	if len(traceFile) > 0 {
 		trace, err = os.Create(traceFile)
 		if err != nil {
 			return errors.Wrapf(err, "Could not open trace file %s", traceFile)
+		}
+		traceObj = json.NewEncoder(trace)
+		if verbose {
+			fmt.Printf("WARNING: verbose is set, every accepted sample will be written to trace file %s\n", traceFile)
 		}
 	}
 
@@ -198,8 +204,8 @@ func modelMarginals() error {
 		if gen.Float64() <= sampleRate {
 			sampleCount++
 
-			if trace != nil {
-				fmt.Fprintf(trace, "%v\n", oneSample)
+			if trace != nil && verbose {
+				traceObj.Encode(oneSample)
 			}
 
 			for i, v := range mod.Vars {
@@ -242,20 +248,27 @@ func modelMarginals() error {
 
 	// Output the marginals we found and our final evaluation
 	// TODO: write to a UAI MAR file
-	fmt.Printf("Done => Marginals:\n")
+	fmt.Printf("DONE\n")
+
 	for _, v := range mod.Vars {
-		fmt.Printf("Variable[%d] %s (Card:%d, SelCount:%d)\n", v.ID, v.Name, v.Card, v.Counter)
 		v.NormMarginal()
-		fmt.Printf("%+v\n", v.Marginal)
+
+		if verbose {
+			fmt.Printf("Variable[%d] %s (Card:%d, %+v) %+v\n", v.ID, v.Name, v.Card, v.State, v.Marginal)
+		}
+	}
+
+	if trace != nil {
+		traceObj.SetIndent("", "  ")
+		traceObj.Encode(mod)
 	}
 
 	if len(solFile) > 0 {
 		score, err := sol.Score(mod)
 		if err != nil {
-			fmt.Printf("Error calculating final score! Will continue: error %+v", err)
-		} else {
-			fmt.Printf("Final eval metric (worst case): %.6f nlog=%.3f\n", score, -math.Log(score))
+			return errors.Wrapf(err, "Error calculating final score! Will continue: error %+v", err)
 		}
+		fmt.Printf("Final eval metric (worst case): %.6f nlog=%.3f\n", score, -math.Log(score))
 	}
 
 	return nil
