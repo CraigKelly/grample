@@ -26,6 +26,12 @@
   version = "v1.0.0"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/seehuhn/mt19937"
+  packages = ["."]
+  revision = "98c0ea580d2f3c5a171acf4d4f15321b72209d08"
+
+[[projects]]
   name = "github.com/spf13/cobra"
   packages = ["."]
   revision = "a1f051bc3eba734da4772d60e2d677f47cf93ef4"
@@ -46,6 +52,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "bec2071add6b49b48115e7e50953fe3a56e758feafe2a91fa17dc48ddfb47a6b"
+  inputs-digest = "bed4e6457854cd76edd6a51459b44fd0213a34b49bf79af3d8803b9a45f1c55e"
   solver-name = "gps-cdcl"
   solver-version = 1

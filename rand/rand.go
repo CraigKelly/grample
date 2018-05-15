@@ -1,10 +1,8 @@
 package rand
 
 import (
-	"math/rand"
+	"github.com/seehuhn/mt19937"
 )
-
-// TODO: use mersenne twister instead of math/rand
 
 // A Generator uses a goroutine to populate batches of random numbers. One day
 // is will also use a better PRNG, like the Mersenne twister.
@@ -17,7 +15,8 @@ func NewGenerator(seed int64) (*Generator, error) {
 	numChan := make(chan int64, 1024)
 
 	go func() {
-		r := rand.New(rand.NewSource(seed))
+		r := mt19937.New()
+		r.Seed(seed)
 		for {
 			numChan <- r.Int63()
 		}
