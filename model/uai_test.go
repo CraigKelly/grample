@@ -109,15 +109,15 @@ func TestUAIMarSolFile(t *testing.T) {
 
 	// Handy to know: our simple one.uai model has a single factor of 0.25/0.75
 	// and models default the vars to have uniform marginals. So we know the
-	// starting score should be 0.5
-	score, err := s.Score(m)
+	// starting TAE should be 0.5
+	score, _, err := s.AbsError(m)
 	assert.NoError(err)
 	assert.InEpsilon(0.5, score, 1e-8)
 
 	// Also check non-normed model vars
 	m.Vars[0].Marginal[0] = 250.0
 	m.Vars[0].Marginal[1] = 250.0
-	score, err = s.Score(m)
+	score, _, err = s.AbsError(m)
 	assert.NoError(err)
 	assert.InEpsilon(0.5, score, 1e-8)
 }

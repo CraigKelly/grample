@@ -120,12 +120,18 @@ func modelMarginals() error {
 			return errors.Wrapf(err, "Could not read solution file %s", solFile)
 		}
 
-		score, err := sol.Score(mod)
+		totScore, maxScore, err := sol.AbsError(mod)
 		if err != nil {
 			return errors.Wrapf(err, "Error calculation init score on startup")
 		}
+		hellScore, err := sol.HellingerError(mod)
+		if err != nil {
+			return errors.Wrapf(err, "Error calc init hellinger on startup")
+		}
 
-		fmt.Printf("Starting eval metric (worst case): %.6f nlog=%.3f\n", score, -math.Log(score))
+		fmt.Printf("Start TotAE: %.6f nlog=%.3f\n", totScore, -math.Log(totScore))
+		fmt.Printf("Start MaxAE: %.6f nlog=%.3f\n", maxScore, -math.Log(maxScore))
+		fmt.Printf("Start HellE: %.6f nlog=%.3f\n", hellScore, -math.Log(hellScore))
 	}
 
 	// Some of our parameters are based on variable count
@@ -232,11 +238,11 @@ func modelMarginals() error {
 
 			evalReport := "---"
 			if len(solFile) > 1 {
-				score, err := sol.Score(mod)
+				score, maxScore, err := sol.AbsError(mod)
 				if err != nil {
-					return errors.Wrapf(err, "Error calculating score")
+					return errors.Wrapf(err, "Error calculating TAE")
 				}
-				evalReport = fmt.Sprintf("%8.6f nlog=%.3f", score, -math.Log(score))
+				evalReport = fmt.Sprintf("%8.6f nlog=%.3f (maxE %8.6f)", score, -math.Log(score), maxScore)
 			}
 
 			fmt.Printf(
@@ -264,11 +270,17 @@ func modelMarginals() error {
 	}
 
 	if len(solFile) > 0 {
-		score, err := sol.Score(mod)
+		totScore, maxScore, err := sol.AbsError(mod)
 		if err != nil {
-			return errors.Wrapf(err, "Error calculating final score! Will continue: error %+v", err)
+			return errors.Wrapf(err, "Error calculating AE!")
 		}
-		fmt.Printf("Final eval metric (worst case): %.6f nlog=%.3f\n", score, -math.Log(score))
+		hellScore, err := sol.HellingerError(mod)
+		if err != nil {
+			return errors.Wrapf(err, "Error calculating Hellinger Err!")
+		}
+		fmt.Printf("Final TotAE: %.6f nlog=%.3f\n", totScore, -math.Log(totScore))
+		fmt.Printf("Final MaxAE: %.6f nlog=%.3f\n", maxScore, -math.Log(maxScore))
+		fmt.Printf("Final HellE: %.6f nlog=%.3f\n", hellScore, -math.Log(hellScore))
 	}
 
 	return nil
