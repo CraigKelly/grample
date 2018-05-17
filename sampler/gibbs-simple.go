@@ -20,8 +20,6 @@ type GibbsSimple struct {
 	varPool     *sync.Pool
 }
 
-// TODO: unit test error handling and getting at least one good sample
-
 // NewGibbsSimple creates a new sampler
 func NewGibbsSimple(gen *rand.Generator, m *model.Model) (*GibbsSimple, error) {
 	if m == nil {
