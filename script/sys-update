@@ -7,6 +7,8 @@ import subprocess
 def all_deps():
     # Unconditionally yield prettybench (see `./bench`)
     yield 'github.com/cespare/prettybench'
+    # Unconditionally yield benchcmp (for comparing benchmarks)
+    yield 'golang.org/x/tools/cmd/benchcmp'
     # Unconditionally get all of gonum before we analyze the Gopkg file
     yield 'gonum.org/v1/gonum/...'
 
