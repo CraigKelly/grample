@@ -42,8 +42,12 @@ $(TESTED): $(SOURCES)
 	$(TOOLDIR)/test
 
 .PHONY: cover
-cover: $(SOURCES) $(VERSIONOUT)
+cover: $(SOURCES) $(TESTED)
 	$(TOOLDIR)/cover
+
+.PHONY: bench
+bench: $(SOURCES) $(TESTED)
+	$(TOOLDIR)/bench
 
 .PHONY: clean
 update: clean
