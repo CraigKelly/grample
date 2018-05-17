@@ -1,0 +1,29 @@
+#!/bin/bash
+
+cyan=$(tput setaf 6)
+underline=$(tput smul)
+normal=$(tput sgr0)
+
+oldf=bench1.out
+newf=bench2.out
+
+function title() {
+    echo -e "${cyan}${underline}" $* "${normal}"
+}
+
+function bench() {
+    go test -run=NONE -benchmem -benchtime=10s -bench=. ./... | tee "$@" | prettybench
+}
+
+set -e
+
+title "Benchmarking without current changes: ${oldf}"
+git stash
+bench ${oldf}
+
+title "Benchmarking WITH changes: ${newf}"
+git stash pop
+bench ${newf}
+
+title "Comparing benchmarks ${oldf} -- ${newf}"
+benchcmp ${oldf} ${newf}
