@@ -18,7 +18,7 @@ install: build
 
 .PHONY: clean
 clean:
-	rm -f $(BINARY) debug debug.test cover.out cover.html $(TESTED)
+	rm -f $(BINARY) debug debug.test *.out cover.html sampler.test $(TESTED)
 	go clean ./...
 
 .PHONY: lint-install
