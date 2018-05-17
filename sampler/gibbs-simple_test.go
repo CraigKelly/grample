@@ -5,7 +5,36 @@ import (
 
 	"github.com/CraigKelly/grample/model"
 	"github.com/CraigKelly/grample/rand"
+
+	"github.com/stretchr/testify/assert"
 )
+
+// Test that we can actually sample from a simple 1-var dist
+func TestWorkingGibbsSimple(t *testing.T) {
+	assert := assert.New(t)
+
+	reader := model.UAIReader{}
+	mod, err := model.NewModelFromFile(reader, "../res/one.uai")
+	assert.NoError(err)
+
+	gen, err := rand.NewGenerator(42)
+	assert.NoError(err)
+
+	samp, err := NewGibbsSimple(gen, mod)
+	assert.NoError(err)
+
+	oneSample := make([]int, 1)
+	counts := make([]int, 2)
+	for i := 0; i < 1024; i++ {
+		err = samp.Sample(oneSample)
+		assert.NoError(err)
+		counts[oneSample[0]]++
+	}
+
+	// Technically just highly unlikely...
+	assert.True(counts[0] > 0)
+	assert.True(counts[1] > 0)
+}
 
 var modIts int
 
