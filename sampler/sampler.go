@@ -15,12 +15,15 @@ type FullSampler interface {
 }
 
 // A ValSampler returns a sample given a cardinality. We assume the possible
-// values are 0 to Cardinality-1.
+// values are 0 to Cardinality-1. Mainly used to select a starting point for a
+// Gibbs-style sampler.
 type ValSampler interface {
 	ValSample(card int) (int, error)
 }
 
-// A VarSampler selects from an array of variables with some probability
+// A VarSampler selects from an array of variables with some probability.
+// Currently used select the next variable to sample in a chain in our Gibbs
+// sampler.
 type VarSampler interface {
 	VarSample(vs []*model.Variable) (int, error)
 }
