@@ -1,3 +1,7 @@
+c This is a sample model that shows up in documentation for this file
+c format. It is trivial, but see one.uai for a minimal file (single
+c boolean variable)
+
 MARKOV
 3
 2 2 3
