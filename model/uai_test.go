@@ -27,6 +27,18 @@ const PASCALExample = `MARKOV
  0.811 0.000 0.189
 `
 
+// Test preprocessing
+func TestUAIPreproc(t *testing.T) {
+	assert := assert.New(t)
+
+	assert.Equal(0, len(uaiPreprocess([]byte(""))))
+	assert.Equal(0, len(uaiPreprocess([]byte("\n\n\n"))))
+	assert.Equal(0, len(uaiPreprocess([]byte("c\nc\nc nope"))))
+	assert.Equal("abc", uaiPreprocess([]byte(" abc ")))
+	assert.Equal("abc", uaiPreprocess([]byte("abc\nc comment\n")))
+	assert.Equal("abc", uaiPreprocess([]byte("\n\n\n\nc comment\n\n\nabc")))
+}
+
 // Test reading the example file at http://www.cs.huji.ac.il/project/PASCAL/fileFormat.php#model
 func TestUAIDoc(t *testing.T) {
 	assert := assert.New(t)

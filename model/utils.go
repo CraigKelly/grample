@@ -13,8 +13,8 @@ type FieldReader struct {
 }
 
 // NewFieldReader constructs a new field reader around the given data
-func NewFieldReader(data []byte) *FieldReader {
-	return &FieldReader{0, strings.Fields(string(data))}
+func NewFieldReader(data string) *FieldReader {
+	return &FieldReader{0, strings.Fields(data)}
 }
 
 // Read returns the next space-delimited field/token

@@ -1,6 +1,8 @@
 package model
 
 import (
+	"strings"
+
 	"github.com/pkg/errors"
 )
 
@@ -9,6 +11,26 @@ import (
 // description of the format is available at
 // http://www.cs.huji.ac.il/project/PASCAL/fileFormat.php
 type UAIReader struct {
+}
+
+// Preprocessor for UAI files: remove lines that are blank or comments
+func uaiPreprocess(data []byte) string {
+	lines := strings.Split(string(data), "\n")
+
+	newPos := 0
+	for i, ln := range lines {
+		ln = strings.TrimSpace(ln)
+		if len(ln) < 1 || ln[0] == 'c' {
+			lines[i] = "" // Empty or comment: skip
+			continue
+		}
+
+		// Rewrite update line and update insert point
+		lines[newPos] = ln
+		newPos++
+	}
+
+	return strings.Join(lines[:newPos], "\n")
 }
 
 // ReadModel implements the model.Reader interface
@@ -20,7 +42,7 @@ func (r UAIReader) ReadModel(data []byte) (*Model, error) {
 	}
 
 	// A minimal model will have 6 fields
-	fr := NewFieldReader(data)
+	fr := NewFieldReader(uaiPreprocess(data))
 	if len(fr.Fields) < 6 {
 		return nil, errors.Errorf("Invalid data: only %d fields found (<6)", len(fr.Fields))
 	}
@@ -144,7 +166,7 @@ func (r UAIReader) ReadMargSolution(data []byte) (*Solution, error) {
 	}
 
 	// A minimal solution will have 3 fields
-	fr := NewFieldReader(data)
+	fr := NewFieldReader(uaiPreprocess(data))
 	if len(fr.Fields) < 4 {
 		return nil, errors.Errorf("Invalid data: only %d fields found (<4)", len(fr.Fields))
 	}
