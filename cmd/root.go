@@ -192,9 +192,10 @@ func modelMarginals() error {
 	// Sampling: main iterations
 	fmt.Printf("Main Sampling Start\n")
 
+	// Note that our first status will happen faster than all later updates
 	stopTime := startTime.Add(time.Duration(maxSecs) * time.Second)
-	untilStatus := time.Duration(2) * time.Second
-	nextStatus := startTime.Add(untilStatus)
+	untilStatus := time.Duration(5) * time.Second
+	nextStatus := startTime.Add(untilStatus / 2)
 
 	it := int64(1)
 	sampleCount := int64(0)
@@ -221,7 +222,6 @@ func modelMarginals() error {
 		// Time checking and status updates
 		now := time.Now()
 		if maxSecs > 0 && now.After(stopTime) {
-			fmt.Printf("Reached stop time %v\n", stopTime)
 			keepWorking = false
 		}
 
