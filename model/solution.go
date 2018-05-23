@@ -59,6 +59,8 @@ func (s *Solution) Check(m *Model) error {
 	return nil
 }
 
+// TODO: don't include Fixed Vars when calculating scores below
+
 // AbsError returns both the total and max absolute error between the model's
 // current marginal estimations and this solution. The final score is the mean
 // over all variables. The solution marginal is assumed to be normalized, the

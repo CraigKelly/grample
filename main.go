@@ -2,8 +2,6 @@ package main
 
 import "github.com/CraigKelly/grample/cmd"
 
-// TODO: EVIDENCE: 1) don't sample over evidence 2) don't use evidence to score marginals
-
 // TODO: Grid 12x12 is basically the best that can be calc'ed dynamically, so get grids 12 and 18
 
 // TODO: need an initial adaptive gibbs sampler (on var selection)
