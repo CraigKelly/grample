@@ -11,6 +11,7 @@ type Variable struct {
 	ID       int                // A numeric ID for tracking a variable
 	Name     string             // Variable name (just a zero-based index in UAI formats)
 	Card     int                // Cardinality - values are assume to be 0 to Card-1
+	FixedVal int                // Current fixed value (fixed by evidence): -1 is no evidence, else if 0 to Card-1
 	Marginal []float64          // Current best estimate for marginal distribution: len should equal Card
 	State    map[string]float64 // State/stats a sampler can track - mainly for JSON tracking
 }
@@ -29,6 +30,7 @@ func NewVariable(index int, card int) (*Variable, error) {
 		ID:       index,
 		Name:     "",
 		Card:     card,
+		FixedVal: -1,
 		Marginal: make([]float64, card),
 		State:    make(map[string]float64),
 	}
@@ -51,6 +53,14 @@ func NewVariable(index int, card int) (*Variable, error) {
 func (v *Variable) Check() error {
 	if v.Card != len(v.Marginal) {
 		return errors.Errorf("Variable %s Card %d != len(M) %d", v.Name, v.Card, len(v.Marginal))
+	}
+
+	// FixedVal should be -1 or correspond to card
+	// Note that this means you can never have a fixed value for a var with card 0.
+	if v.FixedVal != -1 {
+		if v.FixedVal < 0 || v.FixedVal >= v.Card {
+			return errors.Errorf("Variable %s has fixed val %d but must be -1 or match card %d", v.Name, v.FixedVal, v.Card)
+		}
 	}
 
 	// marginal should be a probability dist

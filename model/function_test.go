@@ -8,10 +8,10 @@ import (
 )
 
 func testVars() (v0, v1, v2, v3 *Variable) {
-	v0 = &Variable{0, "V0", 0, []float64{}, nil}
-	v1 = &Variable{1, "V1", 1, []float64{1.0}, nil}
-	v2 = &Variable{2, "V2", 2, []float64{0.25, 0.75}, nil}
-	v3 = &Variable{3, "V2", 3, []float64{0.25, 0.70, 0.05}, nil}
+	v0 = &Variable{0, "V0", 0, -1, []float64{}, nil}
+	v1 = &Variable{1, "V1", 1, -1, []float64{1.0}, nil}
+	v2 = &Variable{2, "V2", 2, -1, []float64{0.25, 0.75}, nil}
+	v3 = &Variable{3, "V2", 3, -1, []float64{0.25, 0.70, 0.05}, nil}
 	return
 }
 

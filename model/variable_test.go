@@ -18,11 +18,13 @@ func TestVarBadCheck(t *testing.T) {
 
 	// bad cases
 	cases := []Variable{
-		{0, "BadVar-NoCardHaveMarg", 0, []float64{0.5, 0.5}, nil},
-		{1, "BadVar-HaveCardNoMarg", 2, []float64{}, nil},
-		{2, "BadVar-MismatchCardMarg", 2, []float64{0.3, 0.3, 0.4}, nil},
-		{3, "BadVer-MargNotADist<1", 2, []float64{0.5, 0.4999}, nil},
-		{4, "BadVer-MargNotADist>1", 2, []float64{0.5, 0.5001}, nil},
+		{0, "BadVar-NoCardHaveMarg", 0, -1, []float64{0.5, 0.5}, nil},
+		{1, "BadVar-HaveCardNoMarg", 2, -1, []float64{}, nil},
+		{2, "BadVar-MismatchCardMarg", 2, -1, []float64{0.3, 0.3, 0.4}, nil},
+		{3, "BadVar-MargNotADist<1", 2, -1, []float64{0.5, 0.4999}, nil},
+		{4, "BadVar-MargNotADist>1", 2, -1, []float64{0.5, 0.5001}, nil},
+		{5, "BadVar-InvalidFixVal", 2, -2, []float64{0.5, 0.5001}, nil},
+		{5, "BadVar-FixVal>Card", 2, 3, []float64{0.5, 0.5001}, nil},
 	}
 
 	for _, v := range cases {
@@ -45,10 +47,12 @@ func TestVarGoodCheck(t *testing.T) {
 
 	// good cases
 	cases := []Variable{
-		{0, "GoodVar-NoCard", 0, []float64{}, nil},
-		{1, "GoodVar-Card1", 1, []float64{1.0}, nil},
-		{2, "GoodVar-Card2", 2, []float64{0.5, 0.5}, nil},
-		{3, "GoodVar-Card3", 3, []float64{0.5, 0.4, 0.1}, nil},
+		{0, "GoodVar-NoCard", 0, -1, []float64{}, nil},
+		{1, "GoodVar-Card1", 1, -1, []float64{1.0}, nil},
+		{2, "GoodVar-Card2", 2, -1, []float64{0.5, 0.5}, nil},
+		{3, "GoodVar-Card3", 3, -1, []float64{0.5, 0.4, 0.1}, nil},
+		{4, "GoodVar-Card3Fix", 3, 0, []float64{0.5, 0.4, 0.1}, nil},
+		{5, "GoodVar-Card3Fix", 3, 2, []float64{0.5, 0.4, 0.1}, nil},
 	}
 
 	for _, v := range cases {
@@ -64,12 +68,12 @@ func TestVarNormProb(t *testing.T) {
 		Success bool
 		Var     *Variable
 	}{
-		{false, &Variable{0, "BadVar-NoCardHaveMarg", 0, []float64{0.5, 0.5}, nil}},
-		{true, &Variable{1, "GoodVar-NoCard", 0, []float64{}, nil}},
-		{true, &Variable{2, "GoodVar-Card1-OK", 1, []float64{1.0}, nil}},
-		{true, &Variable{3, "GoodVar-Card1-SUB", 1, []float64{0.1}, nil}},
-		{true, &Variable{4, "GoodVar-Card2-OK", 2, []float64{0.5, 0.5}, nil}},
-		{true, &Variable{5, "GoodVar-Card2-SUB", 2, []float64{120.0, 120.0}, nil}},
+		{false, &Variable{0, "BadVar-NoCardHaveMarg", 0, -1, []float64{0.5, 0.5}, nil}},
+		{true, &Variable{1, "GoodVar-NoCard", 0, -1, []float64{}, nil}},
+		{true, &Variable{2, "GoodVar-Card1-OK", 1, -1, []float64{1.0}, nil}},
+		{true, &Variable{3, "GoodVar-Card1-SUB", 1, -1, []float64{0.1}, nil}},
+		{true, &Variable{4, "GoodVar-Card2-OK", 2, -1, []float64{0.5, 0.5}, nil}},
+		{true, &Variable{5, "GoodVar-Card2-SUB", 2, -1, []float64{120.0, 120.0}, nil}},
 	}
 
 	for _, c := range cases {
@@ -87,7 +91,7 @@ func TestVarNormProb(t *testing.T) {
 func TestVarNaming(t *testing.T) {
 	assert := assert.New(t)
 
-	v := &Variable{0, "StartName", 0, []float64{}, nil}
+	v := &Variable{0, "StartName", 0, -1, []float64{}, nil}
 
 	assert.Error(v.CreateName(-1)) // Quick error testing
 

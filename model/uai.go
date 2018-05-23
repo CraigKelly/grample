@@ -13,8 +13,9 @@ import (
 type UAIReader struct {
 }
 
-// Preprocessor for UAI files: remove lines that are blank or comments
-func uaiPreprocess(data []byte) string {
+// Preprocessor for UAI files: remove lines that are blank or comments. Return
+// the new buffer and the count of "real" lines found.
+func uaiPreprocess(data []byte) (string, int) {
 	lines := strings.Split(string(data), "\n")
 
 	newPos := 0
@@ -30,7 +31,7 @@ func uaiPreprocess(data []byte) string {
 		newPos++
 	}
 
-	return strings.Join(lines[:newPos], "\n")
+	return strings.Join(lines[:newPos], "\n"), newPos
 }
 
 // ReadModel implements the model.Reader interface
@@ -42,7 +43,11 @@ func (r UAIReader) ReadModel(data []byte) (*Model, error) {
 	}
 
 	// A minimal model will have 6 fields
-	fr := NewFieldReader(uaiPreprocess(data))
+	text, lineCount := uaiPreprocess(data)
+	if lineCount < 1 {
+		return nil, errors.Errorf("No lines found in file")
+	}
+	fr := NewFieldReader(text)
 	if len(fr.Fields) < 6 {
 		return nil, errors.Errorf("Invalid data: only %d fields found (<6)", len(fr.Fields))
 	}
@@ -158,6 +163,77 @@ func (r UAIReader) ReadModel(data []byte) (*Model, error) {
 	return m, nil
 }
 
+// ApplyEvidence is part of the reader interface - read the evidence file and
+// apply to the model.
+func (r UAIReader) ApplyEvidence(data []byte, m *Model) error {
+	text, lineCount := uaiPreprocess(data)
+	if lineCount < 1 {
+		return errors.Errorf("Invalid data buffer: there is no data")
+	} else if lineCount > 2 {
+		return errors.Errorf("Found %d lines: only understand evidence files with 1 or 2 lines", lineCount)
+	}
+
+	fr := NewFieldReader(text)
+	if len(fr.Fields) < 1 {
+		return errors.Errorf("Invalid data: found no fields")
+	}
+
+	var err error
+
+	sampleCount := 1 // default to 1 sample (1-line evidence file format)
+	if lineCount == 2 {
+		sampleCount, err = fr.ReadInt()
+		if err != nil {
+			return errors.Wrapf(err, "Error reading UAI evid file sample count")
+		}
+		if sampleCount == 0 {
+			return nil // Allowed
+		}
+		if sampleCount > 1 {
+			return errors.Errorf("Sample count is %d - only single sample evidence currently supported", sampleCount)
+		}
+	}
+
+	// Read variable count
+	var varCount int
+	varCount, err = fr.ReadInt()
+	if err != nil {
+		return errors.Wrap(err, "Error reading UAI evid Variable Count")
+	}
+	if varCount < 1 {
+		return nil // Allowed
+	}
+
+	var idx int
+	var val int
+	for i := 0; i < varCount; i++ {
+		idx, err = fr.ReadInt()
+		if err != nil {
+			return errors.Wrapf(err, "Could not read evid var on iteration %d", i)
+		}
+		if idx < 0 || idx >= len(m.Vars) {
+			return errors.Errorf("Read incorrect variable index %d", idx)
+		}
+
+		v := m.Vars[idx]
+		if v.FixedVal != -1 {
+			return errors.Errorf("variable[%d]:%v had previous fixedval %d", idx, v.Name, v.FixedVal)
+		}
+
+		val, err = fr.ReadInt()
+		if err != nil {
+			return errors.Wrapf(err, "Could not read evid var value on iteration %d, index %d", i, idx)
+		}
+		if val < 0 || val >= v.Card {
+			return errors.Errorf("Read invalid value %d for variable[%d]:%v with card %d", val, idx, v.Name, v.Card)
+		}
+
+		v.FixedVal = val
+	}
+
+	return nil
+}
+
 // ReadMargSolution implements the model.SolReader interface
 func (r UAIReader) ReadMargSolution(data []byte) (*Solution, error) {
 	// We counted: 1 var with card 1 is MAR 1 1 1.0
@@ -166,7 +242,11 @@ func (r UAIReader) ReadMargSolution(data []byte) (*Solution, error) {
 	}
 
 	// A minimal solution will have 3 fields
-	fr := NewFieldReader(uaiPreprocess(data))
+	text, lineCount := uaiPreprocess(data)
+	if lineCount < 1 {
+		return nil, errors.Errorf("No lines in file")
+	}
+	fr := NewFieldReader(text)
 	if len(fr.Fields) < 4 {
 		return nil, errors.Errorf("Invalid data: only %d fields found (<4)", len(fr.Fields))
 	}

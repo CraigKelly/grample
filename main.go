@@ -2,7 +2,7 @@ package main
 
 import "github.com/CraigKelly/grample/cmd"
 
-// TODO: read evidence and use during sampling - see model/model.go
+// TODO: EVIDENCE: 1) don't sample over evidence 2) don't use evidence to score marginals
 
 // TODO: need an initial adaptive-collapsing giibs sampler
 

@@ -31,12 +31,24 @@ const PASCALExample = `MARKOV
 func TestUAIPreproc(t *testing.T) {
 	assert := assert.New(t)
 
-	assert.Equal(0, len(uaiPreprocess([]byte(""))))
-	assert.Equal(0, len(uaiPreprocess([]byte("\n\n\n"))))
-	assert.Equal(0, len(uaiPreprocess([]byte("c\nc\nc nope"))))
-	assert.Equal("abc", uaiPreprocess([]byte(" abc ")))
-	assert.Equal("abc", uaiPreprocess([]byte("abc\nc comment\n")))
-	assert.Equal("abc", uaiPreprocess([]byte("\n\n\n\nc comment\n\n\nabc")))
+	assertPreproc := func(lineCount int, correct string, buf string) {
+		s, c := uaiPreprocess([]byte(buf))
+		assert.Equal(lineCount, c)
+		assert.Equal(correct, s)
+	}
+
+	assertPreproc(0, "", "")
+	assertPreproc(0, "", "\n\n\n")
+	assertPreproc(0, "", "c\nc\ncnope")
+
+	assertPreproc(1, "abc", " abc ")
+	assertPreproc(1, "abc", "abc\nc comment\n")
+	assertPreproc(1, "abc", "\n\n\n\nc comment\n\n\nabc")
+
+	assertPreproc(2, "hello\nworld", "hello\nworld")
+	assertPreproc(2, "hello\nworld", "hello\nworld\n")
+	assertPreproc(2, "hello\nworld", "\nhello\n\nworld\n")
+	assertPreproc(2, "hello\nworld", "c comment\n\nhello\nc again\nworld\nc last\n\n")
 }
 
 // Test reading the example file at http://www.cs.huji.ac.il/project/PASCAL/fileFormat.php#model
@@ -92,7 +104,7 @@ func TestUAILargeFile(t *testing.T) {
 	assert := assert.New(t)
 
 	r := UAIReader{}
-	m, err := NewModelFromFile(r, "../res/relational_1.uai")
+	m, err := NewModelFromFile(r, "../res/relational_1.uai", false)
 	assert.NoError(err)
 	assert.NoError(m.Check())
 
@@ -111,9 +123,10 @@ func TestUAIMarSolFile(t *testing.T) {
 	assert := assert.New(t)
 
 	r := UAIReader{}
-	m, err := NewModelFromFile(r, "../res/one.uai")
+	m, err := NewModelFromFile(r, "../res/one.uai", false)
 	assert.NoError(err)
 	assert.NoError(m.Check())
+	assert.Equal(-1, m.Vars[0].FixedVal)
 
 	s, err := NewSolutionFromFile(r, "../res/one.uai.MAR")
 	assert.NoError(err)
@@ -132,4 +145,42 @@ func TestUAIMarSolFile(t *testing.T) {
 	score, _, err = s.AbsError(m)
 	assert.NoError(err)
 	assert.InEpsilon(0.5, score, 1e-8)
+}
+
+// Test reading evidence
+func TestUAIMariEvidFile(t *testing.T) {
+	assert := assert.New(t)
+
+	r := UAIReader{}
+
+	// Basic file reading
+	m, err := NewModelFromFile(r, "../res/one.uai", true)
+	assert.NoError(err)
+	assert.NoError(m.Check())
+	// Remember that the default evid file has no evidence
+	assert.Equal(-1, m.Vars[0].FixedVal)
+
+	// Check that we can't support multi-sample evidence
+	err = r.ApplyEvidence([]byte("2\n1 0 0\n1 0 1"), m)
+	assert.Error(err)
+	assert.Equal(-1, m.Vars[0].FixedVal)
+
+	// Test multiple formats and re-application error
+	checkOneVarSet := func(evid string, expVal int) {
+		m, err := NewModelFromFile(r, "../res/one.uai", false)
+		assert.NoError(err)
+		assert.NoError(m.Check())
+		assert.Equal(-1, m.Vars[0].FixedVal)
+
+		err = r.ApplyEvidence([]byte(evid), m)
+		assert.NoError(err)
+		assert.Equal(expVal, m.Vars[0].FixedVal)
+
+		// Now check that re-applying evidence fails
+		err = r.ApplyEvidence([]byte(evid), m)
+		assert.Error(err)
+	}
+
+	checkOneVarSet("1 0 0", 0)
+	checkOneVarSet("1\n1 0 1", 1)
 }

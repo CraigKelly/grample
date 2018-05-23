@@ -14,7 +14,7 @@ func TestWorkingGibbsSimple(t *testing.T) {
 	assert := assert.New(t)
 
 	reader := model.UAIReader{}
-	mod, err := model.NewModelFromFile(reader, "../res/one.uai")
+	mod, err := model.NewModelFromFile(reader, "../res/one.uai", false)
 	assert.NoError(err)
 
 	gen, err := rand.NewGenerator(42)
@@ -42,7 +42,7 @@ func BenchmarkGibbsSimple(b *testing.B) {
 	var err error
 
 	reader := model.UAIReader{}
-	mod, err := model.NewModelFromFile(reader, "../res/relational_1.uai")
+	mod, err := model.NewModelFromFile(reader, "../res/relational_1.uai", false)
 	if err != nil {
 		b.Fatalf("Could not read rel 1 model %v", err)
 	}

@@ -22,6 +22,7 @@ var startTime = time.Now()
 // Parameters
 var verbose bool
 var uaiFile string
+var useEvidence bool
 var solFile string
 var samplerName string
 var randomSeed int64
@@ -32,16 +33,16 @@ var sampleRate float64
 var traceFile string
 
 func startupParms() {
-	fmt.Printf("Verbose:     %v\n", verbose)
-	fmt.Printf("Model:       %s\n", uaiFile)
-	fmt.Printf("Solution:    %s\n", solFile)
-	fmt.Printf("Sampler:     %s\n", samplerName)
-	fmt.Printf("Burn In:     %12d\n", burnIn)
-	fmt.Printf("Max Iters:   %12d\n", maxIters)
-	fmt.Printf("Max Secs:    %12d\n", maxSecs)
-	fmt.Printf("Accept Rate: %12.4f\n", sampleRate)
-	fmt.Printf("Rnd Seed:    %12d\n", randomSeed)
-
+	fmt.Printf("Verbose:        %v\n", verbose)
+	fmt.Printf("Model:          %s\n", uaiFile)
+	fmt.Printf("Apply Evidence: %v\n", useEvidence)
+	fmt.Printf("Solution:       %s\n", solFile)
+	fmt.Printf("Sampler:        %s\n", samplerName)
+	fmt.Printf("Burn In:        %12d\n", burnIn)
+	fmt.Printf("Max Iters:      %12d\n", maxIters)
+	fmt.Printf("Max Secs:       %12d\n", maxSecs)
+	fmt.Printf("Accept Rate:    %12.4f\n", sampleRate)
+	fmt.Printf("Rnd Seed:       %12d\n", randomSeed)
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -72,6 +73,7 @@ func Execute() {
 	rootCmd.PersistentFlags().Int64VarP(&randomSeed, "seed", "e", 1, "Random seed to use")
 
 	rootCmd.PersistentFlags().StringVarP(&uaiFile, "model", "m", "", "UAI model file to read")
+	rootCmd.PersistentFlags().BoolVarP(&useEvidence, "evidence", "d", false, "Apply evidence from evidence file (name inferred from model file")
 	rootCmd.PersistentFlags().StringVarP(&solFile, "solution", "o", "", "UAI MAR solution file to use for scoring")
 	rootCmd.PersistentFlags().StringVarP(&samplerName, "sampler", "s", "", "Name of sampler to use")
 	rootCmd.PersistentFlags().Int64VarP(&burnIn, "burnin", "b", -1, "Burn-In iteration count - if < 0, will use 2000*n (n= # vars)")
@@ -99,7 +101,7 @@ func modelMarginals() error {
 	// Read model from file
 	fmt.Printf("Reading model from %s\n", uaiFile)
 	reader := model.UAIReader{}
-	mod, err = model.NewModelFromFile(reader, uaiFile)
+	mod, err = model.NewModelFromFile(reader, uaiFile, useEvidence)
 	if err != nil {
 		return err
 	}
