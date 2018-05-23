@@ -9,6 +9,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+// TODO: handle FixedVal (evidence) for variables
+
 // GibbsSimple is our baseline, simple to code Gibbs sampler
 type GibbsSimple struct {
 	gen         *rand.Generator
