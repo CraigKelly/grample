@@ -32,9 +32,7 @@ format:
 
 .PHONY: lint
 lint: format
-	@go vet $(PACKAGES) 2>&1 | $(TOOLDIR)/color.py
-	@golint $(PACKAGES) 2>&1 | $(TOOLDIR)/color.py
-	@goconst $(PACKAGES) 2>&1 | $(TOOLDIR)/color.py
+	$(TOOLDIR)/lint
 
 .PHONY: test
 test: $(TESTED)

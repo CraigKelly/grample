@@ -1,0 +1,16 @@
+#!/bin/bash
+
+set -e
+
+Y=$(tput setaf 3)
+U=$(tput smul)
+N=$(tput sgr0)
+
+wrap() {
+    echo -e "${Y}${U}$@${N}"
+    $* $(go list ./...) 2>&1 | ./script/color.py
+}
+
+wrap go vet
+wrap golint
+wrap goconst
