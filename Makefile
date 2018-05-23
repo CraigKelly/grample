@@ -28,13 +28,13 @@ lint-install:
 
 .PHONY: format
 format:
-	go fmt $(PACKAGES)
+	@go fmt $(PACKAGES)
 
 .PHONY: lint
 lint: format
-	go vet $(PACKAGES)
-	golint $(PACKAGES)
-	goconst $(PACKAGES)
+	@go vet $(PACKAGES) | $(TOOLDIR)/color.py
+	@golint $(PACKAGES) | $(TOOLDIR)/color.py
+	@goconst $(PACKAGES) | $(TOOLDIR)/color.py
 
 .PHONY: test
 test: $(TESTED)
