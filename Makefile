@@ -9,7 +9,7 @@ TESTED=.tested
 .PHONY: build
 build: $(BINARY)
 $(BINARY): $(SOURCES) $(TESTED)
-	go build -i ./...
+	@go build -i ./... 2>&1 | $(TOOLDIR)/color.py
 	go build
 
 .PHONY: install
@@ -28,13 +28,13 @@ lint-install:
 
 .PHONY: format
 format:
-	@go fmt $(PACKAGES)
+	@go fmt $(PACKAGES) 2>&1 | $(TOOLDIR)/color.py
 
 .PHONY: lint
 lint: format
-	@go vet $(PACKAGES) | $(TOOLDIR)/color.py
-	@golint $(PACKAGES) | $(TOOLDIR)/color.py
-	@goconst $(PACKAGES) | $(TOOLDIR)/color.py
+	@go vet $(PACKAGES) 2>&1 | $(TOOLDIR)/color.py
+	@golint $(PACKAGES) 2>&1 | $(TOOLDIR)/color.py
+	@goconst $(PACKAGES) 2>&1 | $(TOOLDIR)/color.py
 
 .PHONY: test
 test: $(TESTED)

@@ -8,8 +8,10 @@ import sys
 try:
     import colorclass
 except ImportError:
-    print("color.py requires colorclass to be installed (you can use pip)", file=sys.stderr)
-    sys.exit(1)
+    print("color.py requires colorclass -- ATTEMPTING INSTALL", file=sys.stderr)
+    import subprocess
+    subprocess.run('python3 -m pip install --user --upgrade colorclass', shell=True, check=True)
+    import colorclass
 
 # Handle Windows vs everyone else
 if os.name == "nt":
