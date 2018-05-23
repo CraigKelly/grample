@@ -1,6 +1,7 @@
 package sampler
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/CraigKelly/grample/model"
@@ -9,12 +10,30 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func testVars() (v1 *model.Variable, v2 *model.Variable) {
+	var e error
+
+	v1, e = model.NewVariable(0, 2)
+	if e != nil {
+		panic(fmt.Sprintf("%v", e))
+	}
+
+	v2, e = model.NewVariable(1, 2)
+	if e != nil {
+		panic(fmt.Sprintf("%v", e))
+	}
+
+	return
+}
+
 func TestUniformSampler(t *testing.T) {
 	assert := assert.New(t)
 
+	v1, v2 := testVars()
+
 	gen, err := rand.NewGenerator(42)
 	assert.NoError(err)
-	uni, err := NewUniformSampler(gen)
+	uni, err := NewUniformSampler(gen, 32)
 	assert.NoError(err)
 
 	var i int
@@ -27,11 +46,11 @@ func TestUniformSampler(t *testing.T) {
 	assert.NoError(e)
 	assert.Equal(0, i)
 
-	vars := make([]*model.Variable, 0)
+	vars := []*model.Variable{}
 	i, e = uni.VarSample(vars)
 	assert.Error(e)
 
-	vars = make([]*model.Variable, 1)
+	vars = []*model.Variable{v1}
 	i, e = uni.VarSample(vars)
 	assert.NoError(e)
 	assert.Equal(0, i)
@@ -39,7 +58,7 @@ func TestUniformSampler(t *testing.T) {
 	headCount := 0
 	tailCount := 0
 	flipCount := 0
-	vars = make([]*model.Variable, 2)
+	vars = []*model.Variable{v1, v2}
 
 	for headCount < 1 || tailCount < 1 {
 		i, e := uni.VarSample(vars)
@@ -60,4 +79,30 @@ func TestUniformSampler(t *testing.T) {
 	}
 
 	assert.True(headCount > 0 && tailCount > 0, "Well, that seems unlikely, H=%d,T=%d over %d", headCount, tailCount, flipCount)
+}
+
+func TestUniformSamplerFixed(t *testing.T) {
+	assert := assert.New(t)
+
+	v1, v2 := testVars()
+
+	gen, err := rand.NewGenerator(42)
+	assert.NoError(err)
+	uni, err := NewUniformSampler(gen, 32)
+	assert.NoError(err)
+
+	var i int
+	var e error
+	vars := []*model.Variable{v1, v2}
+
+	// Fix v1, so selection must be v2
+	v1.FixedVal = 0
+	i, e = uni.VarSample(vars)
+	assert.NoError(e)
+	assert.Equal(1, i)
+
+	// Fix v2, so there are no choices - that's an error
+	v2.FixedVal = 1
+	i, e = uni.VarSample(vars)
+	assert.Error(e)
 }

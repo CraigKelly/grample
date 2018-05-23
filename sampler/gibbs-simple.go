@@ -9,8 +9,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// TODO: handle FixedVal (evidence) for variables
-
 // GibbsSimple is our baseline, simple to code Gibbs sampler
 type GibbsSimple struct {
 	gen         *rand.Generator
@@ -29,12 +27,12 @@ func NewGibbsSimple(gen *rand.Generator, m *model.Model) (*GibbsSimple, error) {
 	}
 
 	// Select variable uniformly at random at each step
-	uniform, err := NewUniformSampler(gen)
+	uniform, err := NewUniformSampler(gen, len(m.Vars))
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create uniform sampler in Gibbs Simple sample")
 	}
 
-	// We need an array of inys the size of our variables a LOT and run
+	// We need an array of ints the size of our variables a LOT and run
 	// parallel chains. This pool keeps our allocations low.
 	varPool := &sync.Pool{
 		New: func() interface{} {
@@ -96,13 +94,17 @@ func NewGibbsSimple(gen *rand.Generator, m *model.Model) (*GibbsSimple, error) {
 			return nil, errors.Errorf("There are no functions for var %s (ID=%d)", v.Name, v.ID)
 		}
 
-		// Select value for every variable with uniform prob
-		val, err := uniform.ValSample(v.Card)
-		if err != nil {
-			return nil, errors.Wrapf(err, "Could not generate start sample for variable %v", v.Name)
+		// Select value for every variable with uniform prob UNLESS it is Fixed
+		// (in that case we always know the value)
+		if v.FixedVal >= 0 {
+			s.last[i] = v.FixedVal
+		} else {
+			val, err := uniform.ValSample(v.Card)
+			if err != nil {
+				return nil, errors.Wrapf(err, "Could not generate start sample for variable %v", v.Name)
+			}
+			s.last[i] = val
 		}
-
-		s.last[i] = val
 	}
 
 	return s, nil
@@ -121,6 +123,10 @@ func (g *GibbsSimple) Sample(s []int) error {
 	}
 	sampleVar := g.pgm.Vars[varIdx]
 	sampleVar.State["Selections"] += 1.0
+
+	if sampleVar.FixedVal >= 0 {
+		return errors.Errorf("Selected sample variable %v which has FixedVal=%d", sampleVar.Name, sampleVar.FixedVal)
+	}
 
 	// Find all related factors and marginalize for sampleVar
 
@@ -157,7 +163,8 @@ func (g *GibbsSimple) Sample(s []int) error {
 		}
 
 		// Now we need to call once for every value possible for our current
-		// variable
+		// variable. Remember that we're in log space, so we can add values
+		// (instead of multiplying the function results)
 		for v := 0; v < sampleVar.Card; v++ {
 			callVals[callIdx] = v
 			result, err := fun.Eval(callVals)

@@ -32,6 +32,7 @@ var maxSecs int64
 var sampleRate float64
 var traceFile string
 
+// Helper for outputting parameters
 func startupParms() {
 	fmt.Printf("Verbose:        %v\n", verbose)
 	fmt.Printf("Model:          %s\n", uaiFile)
@@ -45,50 +46,56 @@ func startupParms() {
 	fmt.Printf("Rnd Seed:       %12d\n", randomSeed)
 }
 
+// Help text for root command
+const cmdHelp = `grample provides sampling-based inference for PGM's. Features include:
+
+- The ability to read UAI PGM files (for models and evidence)
+- A Gibbs sampler
+- An experimental version of an Adaptive Gibbs sampler
+`
+
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	var rootCmd = &cobra.Command{
+	var cmd = &cobra.Command{
 		Use:   "grample",
+		RunE:  rootRunE,
 		Short: "(Probalistic) Graphical Model Sampling Methods",
-		Long: `grample provides sampling-based inference for PGM's. Features include:
-
-  - The ability to read UAI PGM files (for models and evidence)
-  - A Gibbs sampler
-  - An experimental version of an Adaptive Gibbs sampler
-    `,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Printf("grample\n")
-
-			if sampleRate > 1.0 {
-				return errors.Errorf("Invalid sample rate %v: must be in the range (0.0, 1.0)", sampleRate)
-			}
-
-			return modelMarginals()
-		},
+		Long:  cmdHelp,
 	}
 
-	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Verbose logging (default is much more parsimonious)")
+	pf := cmd.PersistentFlags()
+	pf.BoolVarP(&verbose, "verbose", "v", false, "Verbose logging (default is much more parsimonious)")
+	pf.Int64VarP(&randomSeed, "seed", "e", 1, "Random seed to use")
+	pf.StringVarP(&uaiFile, "model", "m", "", "UAI model file to read")
+	pf.BoolVarP(&useEvidence, "evidence", "d", false, "Apply evidence from evidence file (name inferred from model file")
+	pf.StringVarP(&solFile, "solution", "o", "", "UAI MAR solution file to use for scoring")
+	pf.StringVarP(&samplerName, "sampler", "s", "", "Name of sampler to use")
+	pf.Int64VarP(&burnIn, "burnin", "b", -1, "Burn-In iteration count - if < 0, will use 2000*n (n= # vars)")
+	pf.Int64VarP(&maxIters, "maxiters", "i", 0, "Maximum iterations (not including burnin) 0 if < 0 will use 20000*n")
+	pf.Int64VarP(&maxSecs, "maxsecs", "x", 300, "Maximum seconds to run (0 for no maximum)")
+	pf.StringVarP(&traceFile, "trace", "t", "", "Optional trace file: all samples written here")
+	pf.Float64VarP(&sampleRate, "srate", "r", -1.0, "Rate at which samples are accepted (1.0 to accept all) - if < 0, will use 1/n")
 
-	rootCmd.PersistentFlags().Int64VarP(&randomSeed, "seed", "e", 1, "Random seed to use")
+	cmd.MarkPersistentFlagRequired("model")
+	cmd.MarkPersistentFlagRequired("sampler")
 
-	rootCmd.PersistentFlags().StringVarP(&uaiFile, "model", "m", "", "UAI model file to read")
-	rootCmd.PersistentFlags().BoolVarP(&useEvidence, "evidence", "d", false, "Apply evidence from evidence file (name inferred from model file")
-	rootCmd.PersistentFlags().StringVarP(&solFile, "solution", "o", "", "UAI MAR solution file to use for scoring")
-	rootCmd.PersistentFlags().StringVarP(&samplerName, "sampler", "s", "", "Name of sampler to use")
-	rootCmd.PersistentFlags().Int64VarP(&burnIn, "burnin", "b", -1, "Burn-In iteration count - if < 0, will use 2000*n (n= # vars)")
-	rootCmd.PersistentFlags().Int64VarP(&maxIters, "maxiters", "i", 0, "Maximum iterations (not including burnin) 0 if < 0 will use 20000*n")
-	rootCmd.PersistentFlags().Int64VarP(&maxSecs, "maxsecs", "x", 300, "Maximum seconds to run (0 for no maximum)")
-	rootCmd.PersistentFlags().StringVarP(&traceFile, "trace", "t", "", "Optional trace file: all samples written here")
-	rootCmd.PersistentFlags().Float64VarP(&sampleRate, "srate", "r", -1.0, "Rate at which samples are accepted (1.0 to accept all) - if < 0, will use 1/n")
-
-	rootCmd.MarkPersistentFlagRequired("model")
-	rootCmd.MarkPersistentFlagRequired("sampler")
-
-	if err := rootCmd.Execute(); err != nil {
+	if err := cmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+// Run/entry for the root cmd
+func rootRunE(cmd *cobra.Command, args []string) error {
+	fmt.Printf("grample\n")
+
+	// Extra checks on parameters
+	if sampleRate > 1.0 {
+		return errors.Errorf("Invalid sample rate %v: must be in the range (0.0, 1.0)", sampleRate)
+	}
+
+	return modelMarginals()
 }
 
 // Our current default action (and the only one we support)
@@ -217,7 +224,10 @@ func modelMarginals() error {
 			}
 
 			for i, v := range mod.Vars {
-				v.Marginal[oneSample[i]] += 1.0
+				// Only update marginal counts if this isn't a fixed var (evidence)
+				if v.FixedVal < 0 {
+					v.Marginal[oneSample[i]] += 1.0
+				}
 			}
 		}
 
@@ -253,15 +263,29 @@ func modelMarginals() error {
 		}
 	}
 
-	// Output the marginals we found and our final evaluation
+	// COMPLETED! normalize our marginals
+	for _, v := range mod.Vars {
+		if v.FixedVal >= 0 {
+			v.NormMarginal()
+		}
+	}
+
 	// TODO: write to a UAI MAR file
+
+	// Output the marginals we found and our final evaluation
 	fmt.Printf("DONE\n")
 
-	for _, v := range mod.Vars {
-		v.NormMarginal()
-
-		if verbose {
-			fmt.Printf("Variable[%d] %s (Card:%d, %+v) %+v\n", v.ID, v.Name, v.Card, v.State, v.Marginal)
+	// Output evidence vars first, then output vars we're estimating
+	if verbose {
+		for _, v := range mod.Vars {
+			if v.FixedVal >= 0 {
+				fmt.Printf("Variable[%d] %s (Card:%d, %+v) EVID=%d\n", v.ID, v.Name, v.Card, v.State, v.FixedVal)
+			}
+		}
+		for _, v := range mod.Vars {
+			if v.FixedVal < 0 {
+				fmt.Printf("Variable[%d] %s (Card:%d, %+v) %+v\n", v.ID, v.Name, v.Card, v.State, v.Marginal)
+			}
 		}
 	}
 

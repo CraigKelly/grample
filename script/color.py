@@ -24,13 +24,18 @@ def line_process(line):
     """Add any necessary color to the line and return the final, corrected line."""
     # path/file.go:3:14: Warning about line 1, col 14 on file.go
     flds = line.strip().split(':')
-    if len(flds) < 4:
+    if len(flds) < 3:
         return line  # Not in a format we recognize
 
     clr = colorclass.Color
 
     # Note that we currently do nothing to msg
-    fname, line, col, *rest = flds
+    # Also note that col doesn't always show up
+    fname, line, *rest = flds
+    if len(rest) > 1:
+        col, *rest = rest
+    else:
+        col = ' '
     
     fname = clr('{autocyan}{u}%s{/u}{/autocyan}' % fname)
     line = clr('{autogreen}%s{/autogreen}' % line)

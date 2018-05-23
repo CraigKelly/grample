@@ -1,6 +1,8 @@
 package sampler
 
 import (
+	"sync"
+
 	"github.com/CraigKelly/grample/model"
 	"github.com/CraigKelly/grample/rand"
 	"github.com/pkg/errors"
@@ -30,13 +32,25 @@ type VarSampler interface {
 
 // UniformSampler provides uniform sampling for our interfaces
 type UniformSampler struct {
-	gen *rand.Generator
+	gen  *rand.Generator
+	pool *sync.Pool
 }
 
 // NewUniformSampler creates a new uniform sampler
-func NewUniformSampler(gen *rand.Generator) (*UniformSampler, error) {
+func NewUniformSampler(gen *rand.Generator, maxVars int) (*UniformSampler, error) {
+	if maxVars < 1 {
+		return nil, errors.Errorf("Invalid max var count (%d)", maxVars)
+	}
+
+	p := &sync.Pool{
+		New: func() interface{} {
+			return make([]int, maxVars)
+		},
+	}
+
 	s := &UniformSampler{
-		gen: gen,
+		gen:  gen,
+		pool: p,
 	}
 	return s, nil
 }
@@ -60,10 +74,32 @@ func (s *UniformSampler) VarSample(vs []*model.Variable) (int, error) {
 		return 0, errors.New("Can not sample from an empty variable list")
 	}
 
-	i, e := s.ValSample(vsLen)
+	// First find indexes of all variables we can select (that are NOT fixed)
+	targetIndexes := s.pool.Get().([]int)
+	defer s.pool.Put(targetIndexes)
+
+	targetCount := 0
+	for i, v := range vs {
+		if v.FixedVal < 0 {
+			targetIndexes[targetCount] = i
+			targetCount++
+		}
+	}
+
+	// Corner cases
+	if targetCount < 1 {
+		// No possible selection
+		return 0, errors.New("All variable are fixed - nothing to select")
+	} else if targetCount == 1 {
+		// Only one variable to select
+		return targetIndexes[0], nil
+	}
+
+	// Select an entry from our list and return the corresponding index
+	i, e := s.ValSample(targetCount)
 	if e != nil {
 		return -1, e
 	}
 
-	return i, nil
+	return targetIndexes[i], nil
 }
