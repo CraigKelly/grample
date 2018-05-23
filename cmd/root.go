@@ -112,15 +112,6 @@ func modelMarginals() error {
 	if err != nil {
 		return err
 	}
-	if verbose {
-		fmt.Printf("MODEL: %+v\n", mod)
-		for _, v := range mod.Vars {
-			fmt.Printf("  %+v\n", v)
-		}
-		for _, f := range mod.Funcs {
-			fmt.Printf("  %+v\n", f)
-		}
-	}
 
 	// Read solution file (if we have one)
 	if len(solFile) > 0 {
