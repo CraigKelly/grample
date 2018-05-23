@@ -3,5 +3,6 @@
 TESTED=./.tested
 
 rm -f "$TESTED"
+set -e
 go test -race -tags "test" "$@" ./...
 touch "$TESTED"
