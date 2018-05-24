@@ -141,13 +141,13 @@ func Execute() {
 	pf.Int64VarP(&sp.randomSeed, "seed", "e", 1, "Random seed to use")
 	pf.StringVarP(&sp.uaiFile, "model", "m", "", "UAI model file to read")
 	pf.BoolVarP(&sp.useEvidence, "evidence", "d", false, "Apply evidence from evidence file (name inferred from model file")
-	pf.BoolVarP(&sp.solFile, "solution", "o", false, "Use UAI MAR solution file to use for scoring (name inferred from model file)")
+	pf.BoolVarP(&sp.solFile, "solution", "o", false, "Use UAI MAR solution file to score (name inferred from model file)")
 	pf.StringVarP(&sp.samplerName, "sampler", "s", "", "Name of sampler to use")
 	pf.Int64VarP(&sp.burnIn, "burnin", "b", -1, "Burn-In iteration count - if < 0, will use 2000*n (n= # vars)")
 	pf.Int64VarP(&sp.maxIters, "maxiters", "i", 0, "Maximum iterations (not including burnin) 0 if < 0 will use 20000*n")
 	pf.Int64VarP(&sp.maxSecs, "maxsecs", "x", 300, "Maximum seconds to run (0 for no maximum)")
 	pf.StringVarP(&sp.traceFile, "trace", "t", "", "Optional trace file: all samples written here")
-	pf.Float64VarP(&sp.sampleRate, "srate", "r", -1.0, "Rate at which samples are accepted (1.0 to accept all) - if < 0, will use 1/n")
+	pf.Float64VarP(&sp.sampleRate, "srate", "r", -1.0, "Sample acceptance rate (1.0 for all) - if < 0, will use 1/n")
 
 	cmd.MarkPersistentFlagRequired("model")
 	cmd.MarkPersistentFlagRequired("sampler")
@@ -262,7 +262,9 @@ func modelMarginals(sp *startupParams) error {
 		if gen.Float64() <= sp.sampleRate {
 			sampleCount++
 
-			sp.traceJ.Encode(oneSample)
+			if sp.verbose {
+				sp.traceJ.Encode(oneSample) // Only trace samples when verbose
+			}
 
 			for i, v := range mod.Vars {
 				// Only update marginal counts if this isn't a fixed var (evidence)
