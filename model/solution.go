@@ -59,8 +59,6 @@ func (s *Solution) Check(m *Model) error {
 	return nil
 }
 
-// TODO: don't include Fixed Vars when calculating scores below
-
 // AbsError returns both the total and max absolute error between the model's
 // current marginal estimations and this solution. The final score is the mean
 // over all variables. The solution marginal is assumed to be normalized, the
@@ -74,7 +72,16 @@ func (s *Solution) AbsError(m *Model) (absErrMean float64, maxErrMean float64, f
 	totErrMax := float64(0.0) // Total MAX error (max per var)
 	const eps = float64(1e-12)
 
+	// Remember that we skip vars
+	varCount := 0
+
 	for i, v := range m.Vars {
+		if v.FixedVal >= 0 {
+			continue
+		}
+
+		varCount++
+
 		// get total for normalizing
 		tot := float64(0.0)
 		for c := 0; c < v.Card; c++ {
@@ -99,8 +106,12 @@ func (s *Solution) AbsError(m *Model) (absErrMean float64, maxErrMean float64, f
 		totErrMax += maxErr
 	}
 
-	absErrMean = totErrSum / float64(len(s.Vars))
-	maxErrMean = totErrMax / float64(len(s.Vars))
+	if varCount < 1 {
+		return math.NaN(), math.NaN(), errors.Errorf("No un-fixed vars found to score")
+	}
+
+	absErrMean = totErrSum / float64(varCount)
+	maxErrMean = totErrMax / float64(varCount)
 	return
 }
 
@@ -117,7 +128,16 @@ func (s *Solution) HellingerError(m *Model) (float64, error) {
 	totErr := float64(0.0)
 	const eps = float64(1e-12)
 
+	// No fixed vars
+	varCount := 0
+
 	for i, v := range m.Vars {
+		if v.FixedVal >= 0 {
+			continue
+		}
+
+		varCount++
+
 		// get total for normalizing
 		tot := float64(0.0)
 		for c := 0; c < v.Card; c++ {
@@ -139,5 +159,9 @@ func (s *Solution) HellingerError(m *Model) (float64, error) {
 		totErr += errSum / math.Sqrt2
 	}
 
-	return totErr / float64(len(s.Vars)), nil
+	if varCount < 1 {
+		return math.NaN(), errors.Errorf("No un-fixed vars to score")
+	}
+
+	return totErr / float64(varCount), nil
 }
