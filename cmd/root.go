@@ -3,6 +3,8 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"math"
 	"os"
 	"strings"
@@ -19,31 +21,84 @@ import (
 // We want to cheat as little as possible, so we grab the start time ASAP
 var startTime = time.Now()
 
-// Parameters
-var verbose bool
-var uaiFile string
-var useEvidence bool
-var solFile string
-var samplerName string
-var randomSeed int64
-var burnIn int64
-var maxIters int64
-var maxSecs int64
-var sampleRate float64
-var traceFile string
+// Parameter
+type startupParams struct {
+	verbose     bool
+	uaiFile     string
+	useEvidence bool
+	solFile     bool
+	samplerName string
+	randomSeed  int64
+	burnIn      int64
+	maxIters    int64
+	maxSecs     int64
+	sampleRate  float64
+	traceFile   string
 
-// Helper for outputting parameters
-func startupParms() {
-	fmt.Printf("Verbose:        %v\n", verbose)
-	fmt.Printf("Model:          %s\n", uaiFile)
-	fmt.Printf("Apply Evidence: %v\n", useEvidence)
-	fmt.Printf("Solution:       %s\n", solFile)
-	fmt.Printf("Sampler:        %s\n", samplerName)
-	fmt.Printf("Burn In:        %12d\n", burnIn)
-	fmt.Printf("Max Iters:      %12d\n", maxIters)
-	fmt.Printf("Max Secs:       %12d\n", maxSecs)
-	fmt.Printf("Accept Rate:    %12.4f\n", sampleRate)
-	fmt.Printf("Rnd Seed:       %12d\n", randomSeed)
+	// These are created/handled by Setup
+	out    *log.Logger
+	verb   *log.Logger
+	trace  *log.Logger
+	traceJ JSONLogger
+}
+
+// JSONLogger is a simple interface for JSON logging (matches json.Encoder) and
+// nil/no-op implementation
+type JSONLogger interface {
+	Encode(v interface{}) error
+	SetIndent(prefix, indent string)
+}
+
+// DiscardJSON does nothing
+type DiscardJSON struct{}
+
+// Encode for DiscardJSON does nothing
+func (n *DiscardJSON) Encode(interface{}) error {
+	return nil
+}
+
+// SetIndent for DiscardJSON does nothing
+func (n *DiscardJSON) SetIndent(string, string) {
+	return
+}
+
+// Setup handles initialization based on supplied parameters
+func (s *startupParams) Setup() error {
+	s.out = log.New(os.Stdout, "", 0)
+
+	if s.verbose {
+		s.verb = log.New(os.Stdout, "", 0)
+	} else {
+		s.verb = log.New(ioutil.Discard, "", 0)
+	}
+
+	if len(s.traceFile) > 0 {
+		f, err := os.Create(s.traceFile)
+		if err != nil {
+			return err
+		}
+		s.trace = log.New(f, "", 0)
+		s.traceJ = json.NewEncoder(f)
+	} else {
+		s.trace = log.New(ioutil.Discard, "", 0)
+		s.traceJ = &DiscardJSON{}
+	}
+
+	return nil
+}
+
+// Report just writes commands - must be called after Setup
+func (s *startupParams) Report() {
+	s.out.Printf("Verbose:        %v\n", s.verbose)
+	s.out.Printf("Model:          %s\n", s.uaiFile)
+	s.out.Printf("Apply Evidence: %v\n", s.useEvidence)
+	s.out.Printf("Solution:       %v\n", s.solFile)
+	s.out.Printf("Sampler:        %s\n", s.samplerName)
+	s.out.Printf("Burn In:        %12d\n", s.burnIn)
+	s.out.Printf("Max Iters:      %12d\n", s.maxIters)
+	s.out.Printf("Max Secs:       %12d\n", s.maxSecs)
+	s.out.Printf("Accept Rate:    %12.4f\n", s.sampleRate)
+	s.out.Printf("Rnd Seed:       %12d\n", s.randomSeed)
 }
 
 // Help text for root command
@@ -57,6 +112,23 @@ const cmdHelp = `grample provides sampling-based inference for PGM's. Features i
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
+	sp := &startupParams{}
+
+	rootRunE := func(cmd *cobra.Command, args []string) error {
+		err := sp.Setup()
+		if err != nil {
+			return err
+		}
+		sp.out.Printf("grample\n")
+
+		// Extra checks on parameters
+		if sp.sampleRate > 1.0 {
+			return errors.Errorf("Invalid sample rate %v: must be in the range (0.0, 1.0)", sp.sampleRate)
+		}
+
+		return modelMarginals(sp)
+	}
+
 	var cmd = &cobra.Command{
 		Use:   "grample",
 		RunE:  rootRunE,
@@ -65,17 +137,17 @@ func Execute() {
 	}
 
 	pf := cmd.PersistentFlags()
-	pf.BoolVarP(&verbose, "verbose", "v", false, "Verbose logging (default is much more parsimonious)")
-	pf.Int64VarP(&randomSeed, "seed", "e", 1, "Random seed to use")
-	pf.StringVarP(&uaiFile, "model", "m", "", "UAI model file to read")
-	pf.BoolVarP(&useEvidence, "evidence", "d", false, "Apply evidence from evidence file (name inferred from model file")
-	pf.StringVarP(&solFile, "solution", "o", "", "UAI MAR solution file to use for scoring")
-	pf.StringVarP(&samplerName, "sampler", "s", "", "Name of sampler to use")
-	pf.Int64VarP(&burnIn, "burnin", "b", -1, "Burn-In iteration count - if < 0, will use 2000*n (n= # vars)")
-	pf.Int64VarP(&maxIters, "maxiters", "i", 0, "Maximum iterations (not including burnin) 0 if < 0 will use 20000*n")
-	pf.Int64VarP(&maxSecs, "maxsecs", "x", 300, "Maximum seconds to run (0 for no maximum)")
-	pf.StringVarP(&traceFile, "trace", "t", "", "Optional trace file: all samples written here")
-	pf.Float64VarP(&sampleRate, "srate", "r", -1.0, "Rate at which samples are accepted (1.0 to accept all) - if < 0, will use 1/n")
+	pf.BoolVarP(&sp.verbose, "verbose", "v", false, "Verbose logging (default is much more parsimonious)")
+	pf.Int64VarP(&sp.randomSeed, "seed", "e", 1, "Random seed to use")
+	pf.StringVarP(&sp.uaiFile, "model", "m", "", "UAI model file to read")
+	pf.BoolVarP(&sp.useEvidence, "evidence", "d", false, "Apply evidence from evidence file (name inferred from model file")
+	pf.BoolVarP(&sp.solFile, "solution", "o", false, "Use UAI MAR solution file to use for scoring (name inferred from model file)")
+	pf.StringVarP(&sp.samplerName, "sampler", "s", "", "Name of sampler to use")
+	pf.Int64VarP(&sp.burnIn, "burnin", "b", -1, "Burn-In iteration count - if < 0, will use 2000*n (n= # vars)")
+	pf.Int64VarP(&sp.maxIters, "maxiters", "i", 0, "Maximum iterations (not including burnin) 0 if < 0 will use 20000*n")
+	pf.Int64VarP(&sp.maxSecs, "maxsecs", "x", 300, "Maximum seconds to run (0 for no maximum)")
+	pf.StringVarP(&sp.traceFile, "trace", "t", "", "Optional trace file: all samples written here")
+	pf.Float64VarP(&sp.sampleRate, "srate", "r", -1.0, "Rate at which samples are accepted (1.0 to accept all) - if < 0, will use 1/n")
 
 	cmd.MarkPersistentFlagRequired("model")
 	cmd.MarkPersistentFlagRequired("sampler")
@@ -86,38 +158,27 @@ func Execute() {
 	}
 }
 
-// Run/entry for the root cmd
-func rootRunE(cmd *cobra.Command, args []string) error {
-	fmt.Printf("grample\n")
-
-	// Extra checks on parameters
-	if sampleRate > 1.0 {
-		return errors.Errorf("Invalid sample rate %v: must be in the range (0.0, 1.0)", sampleRate)
-	}
-
-	return modelMarginals()
-}
-
 // Our current default action (and the only one we support)
-func modelMarginals() error {
+func modelMarginals(sp *startupParams) error {
 	var mod *model.Model
 	var sol *model.Solution
-	var err error
 	var samp sampler.FullSampler
+	var err error
 
 	// Read model from file
-	fmt.Printf("Reading model from %s\n", uaiFile)
+	sp.out.Printf("Reading model from %s\n", sp.uaiFile)
 	reader := model.UAIReader{}
-	mod, err = model.NewModelFromFile(reader, uaiFile, useEvidence)
+	mod, err = model.NewModelFromFile(reader, sp.uaiFile, sp.useEvidence)
 	if err != nil {
 		return err
 	}
 
 	// Read solution file (if we have one)
-	if len(solFile) > 0 {
-		sol, err = model.NewSolutionFromFile(reader, solFile)
+	if sp.solFile {
+		solFilename := sp.uaiFile + ".MAR"
+		sol, err = model.NewSolutionFromFile(reader, solFilename)
 		if err != nil {
-			return errors.Wrapf(err, "Could not read solution file %s", solFile)
+			return errors.Wrapf(err, "Could not read solution file %s", solFilename)
 		}
 
 		totScore, maxScore, err := sol.AbsError(mod)
@@ -129,71 +190,62 @@ func modelMarginals() error {
 			return errors.Wrapf(err, "Error calc init hellinger on startup")
 		}
 
-		fmt.Printf("Start TotAE: %.6f nlog=%.3f\n", totScore, -math.Log(totScore))
-		fmt.Printf("Start MaxAE: %.6f nlog=%.3f\n", maxScore, -math.Log(maxScore))
-		fmt.Printf("Start HellE: %.6f nlog=%.3f\n", hellScore, -math.Log(hellScore))
+		sp.out.Printf("Start TotAE: %.6f nlog=%.3f\n", totScore, -math.Log(totScore))
+		sp.out.Printf("Start MaxAE: %.6f nlog=%.3f\n", maxScore, -math.Log(maxScore))
+		sp.out.Printf("Start HellE: %.6f nlog=%.3f\n", hellScore, -math.Log(hellScore))
 	}
 
 	// Some of our parameters are based on variable count
-	if sampleRate <= 0.0 {
-		sampleRate = 1.0 / float64(len(mod.Vars))
+	if sp.sampleRate <= 0.0 {
+		sp.sampleRate = 1.0 / float64(len(mod.Vars))
 	}
-	if burnIn < 0 {
-		burnIn = int64(2000 * len(mod.Vars))
+	if sp.burnIn < 0 {
+		sp.burnIn = int64(2000 * len(mod.Vars))
 	}
-	if maxIters < 0 {
-		maxIters = int64(20000 * len(mod.Vars))
+	if sp.maxIters < 0 {
+		sp.maxIters = int64(20000 * len(mod.Vars))
 	}
 
 	// Report what's going on
-	startupParms()
+	sp.Report()
 
 	// Create our concurrent PRNG
-	gen, err := rand.NewGenerator(randomSeed)
+	gen, err := rand.NewGenerator(sp.randomSeed)
 	if err != nil {
-		return errors.Wrapf(err, "Could not create Generator from seed %d", randomSeed)
+		return errors.Wrapf(err, "Could not create Generator from seed %d", sp.randomSeed)
 	}
 
 	// select sampler
-	if strings.ToLower(samplerName) == "gibbssimple" {
+	if strings.ToLower(sp.samplerName) == "gibbssimple" {
 		samp, err = sampler.NewGibbsSimple(gen, mod)
 		if err != nil {
-			return errors.Wrapf(err, "Could not create %s", samplerName)
+			return errors.Wrapf(err, "Could not create %s", sp.samplerName)
 		}
 	} else {
-		return errors.Errorf("Unknown Sampler: %s", samplerName)
+		return errors.Errorf("Unknown Sampler: %s", sp.samplerName)
 	}
 
 	// Sampling: burn in
 	oneSample := make([]int, len(mod.Vars))
 
-	fmt.Printf("Performing burn-in (%d)\n", burnIn)
-	for it := int64(1); it <= burnIn; it++ {
+	sp.out.Printf("Performing burn-in (%d)\n", sp.burnIn)
+	for it := int64(1); it <= sp.burnIn; it++ {
 		err = samp.Sample(oneSample)
 		if err != nil {
 			return errors.Wrapf(err, "Error during burn in on it %d", it)
 		}
 	}
 
-	// Trace file
-	var trace *os.File
-	var traceObj *json.Encoder
-	if len(traceFile) > 0 {
-		trace, err = os.Create(traceFile)
-		if err != nil {
-			return errors.Wrapf(err, "Could not open trace file %s", traceFile)
-		}
-		traceObj = json.NewEncoder(trace)
-		if verbose {
-			fmt.Printf("WARNING: verbose is set, every accepted sample will be written to trace file %s\n", traceFile)
-		}
+	// Trace file warning - it can get huge in verbose mode
+	if len(sp.traceFile) > 0 && sp.verbose {
+		sp.out.Printf("WARNING: verbose is set, every accepted sample will be written to trace file %s\n", sp.traceFile)
 	}
 
 	// Sampling: main iterations
-	fmt.Printf("Main Sampling Start\n")
+	sp.out.Printf("Main Sampling Start\n")
 
 	// Note that our first status will happen faster than all later updates
-	stopTime := startTime.Add(time.Duration(maxSecs) * time.Second)
+	stopTime := startTime.Add(time.Duration(sp.maxSecs) * time.Second)
 	untilStatus := time.Duration(5) * time.Second
 	nextStatus := startTime.Add(untilStatus / 2)
 
@@ -207,12 +259,10 @@ func modelMarginals() error {
 		}
 
 		// Only trace and update marginals if we accept the sample
-		if gen.Float64() <= sampleRate {
+		if gen.Float64() <= sp.sampleRate {
 			sampleCount++
 
-			if trace != nil && verbose {
-				traceObj.Encode(oneSample)
-			}
+			sp.traceJ.Encode(oneSample)
 
 			for i, v := range mod.Vars {
 				// Only update marginal counts if this isn't a fixed var (evidence)
@@ -224,13 +274,13 @@ func modelMarginals() error {
 
 		// Time checking and status updates
 		now := time.Now()
-		if maxSecs > 0 && now.After(stopTime) {
+		if sp.maxSecs > 0 && now.After(stopTime) {
 			keepWorking = false
 		}
 
 		// Don't forget to check iterations!
 		it++
-		if maxIters > 0 && it > maxIters {
+		if sp.maxIters > 0 && it > sp.maxIters {
 			keepWorking = false
 		}
 
@@ -239,7 +289,7 @@ func modelMarginals() error {
 			nextStatus = now.Add(untilStatus)
 
 			evalReport := "---"
-			if len(solFile) > 1 {
+			if sp.solFile {
 				score, maxScore, err := sol.AbsError(mod)
 				if err != nil {
 					return errors.Wrapf(err, "Error calculating TAE")
@@ -247,7 +297,7 @@ func modelMarginals() error {
 				evalReport = fmt.Sprintf("%8.6f nlog=%.3f (maxE %8.6f)", score, -math.Log(score), maxScore)
 			}
 
-			fmt.Printf(
+			sp.out.Printf(
 				"  Iterations: %12d | Samples: %12d | Run time %12.2fsec | Eval %s\n",
 				it, sampleCount, time.Now().Sub(startTime).Seconds(), evalReport,
 			)
@@ -264,28 +314,29 @@ func modelMarginals() error {
 	// TODO: write to a UAI MAR file
 
 	// Output the marginals we found and our final evaluation
-	fmt.Printf("DONE\n")
+	sp.out.Printf("DONE\n")
 
 	// Output evidence vars first, then output vars we're estimating
-	if verbose {
-		for _, v := range mod.Vars {
-			if v.FixedVal >= 0 {
-				fmt.Printf("Variable[%d] %s (Card:%d, %+v) EVID=%d\n", v.ID, v.Name, v.Card, v.State, v.FixedVal)
-			}
+	sp.traceJ.SetIndent("", "")
+	sp.trace.Printf("// EVIDENCE")
+	for _, v := range mod.Vars {
+		if v.FixedVal >= 0 {
+			sp.traceJ.Encode(v)
+			sp.verb.Printf("Variable[%d] %s (Card:%d, %+v) EVID=%d\n", v.ID, v.Name, v.Card, v.State, v.FixedVal)
 		}
-		for _, v := range mod.Vars {
-			if v.FixedVal < 0 {
-				fmt.Printf("Variable[%d] %s (Card:%d, %+v) %+v\n", v.ID, v.Name, v.Card, v.State, v.Marginal)
-			}
+	}
+	sp.trace.Printf("// VARS (ESTIMATED)")
+	for _, v := range mod.Vars {
+		if v.FixedVal < 0 {
+			sp.traceJ.Encode(v)
+			sp.verb.Printf("Variable[%d] %s (Card:%d, %+v) %+v\n", v.ID, v.Name, v.Card, v.State, v.Marginal)
 		}
 	}
 
-	if trace != nil {
-		traceObj.SetIndent("", "  ")
-		traceObj.Encode(mod)
-	}
+	sp.traceJ.SetIndent("", "  ")
+	sp.traceJ.Encode(mod)
 
-	if len(solFile) > 0 {
+	if sp.solFile {
 		totScore, maxScore, err := sol.AbsError(mod)
 		if err != nil {
 			return errors.Wrapf(err, "Error calculating AE!")
@@ -294,9 +345,9 @@ func modelMarginals() error {
 		if err != nil {
 			return errors.Wrapf(err, "Error calculating Hellinger Err!")
 		}
-		fmt.Printf("Final TotAE: %.6f nlog=%.3f\n", totScore, -math.Log(totScore))
-		fmt.Printf("Final MaxAE: %.6f nlog=%.3f\n", maxScore, -math.Log(maxScore))
-		fmt.Printf("Final HellE: %.6f nlog=%.3f\n", hellScore, -math.Log(hellScore))
+		sp.out.Printf("Final TotAE: %.6f nlog=%.3f\n", totScore, -math.Log(totScore))
+		sp.out.Printf("Final MaxAE: %.6f nlog=%.3f\n", maxScore, -math.Log(maxScore))
+		sp.out.Printf("Final HellE: %.6f nlog=%.3f\n", hellScore, -math.Log(hellScore))
 	}
 
 	return nil
