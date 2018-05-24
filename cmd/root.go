@@ -308,16 +308,37 @@ func modelMarginals(sp *startupParams) error {
 
 	// COMPLETED! normalize our marginals
 	for _, v := range mod.Vars {
-		if v.FixedVal >= 0 {
-			v.NormMarginal()
-		}
+		v.NormMarginal()
 	}
-
-	// TODO: write to a UAI MAR file
 
 	// Output the marginals we found and our final evaluation
 	sp.out.Printf("DONE\n")
 
+	// Write score if we have a solution file
+	if sp.solFile {
+		totScore, maxScore, err := sol.AbsError(mod)
+		if err != nil {
+			return errors.Wrapf(err, "Error calculating AE!")
+		}
+		hellScore, err := sol.HellingerError(mod)
+		if err != nil {
+			return errors.Wrapf(err, "Error calculating Hellinger Err!")
+		}
+		sp.out.Printf("Final TotAE: %.6f nlog=%.3f\n", totScore, -math.Log(totScore))
+		sp.out.Printf("Final MaxAE: %.6f nlog=%.3f\n", maxScore, -math.Log(maxScore))
+		sp.out.Printf("Final HellE: %.6f nlog=%.3f\n", hellScore, -math.Log(hellScore))
+
+		// Update the state map for variables for the trace/verbose stuff below
+		for i, v := range mod.Vars {
+			s := sol.Vars[i]
+			for c := 0; c < v.Card; c++ {
+				ky := fmt.Sprintf("MAR[%d]", c)
+				v.State[ky] = s.Marginal[c]
+			}
+		}
+	}
+
+	// Trace file and verbose output for final results
 	// Output evidence vars first, then output vars we're estimating
 	sp.traceJ.SetIndent("", "")
 	sp.trace.Printf("// EVIDENCE")
@@ -335,22 +356,9 @@ func modelMarginals(sp *startupParams) error {
 		}
 	}
 
+	sp.trace.Printf("// ENTIRE MODEL\n")
 	sp.traceJ.SetIndent("", "  ")
 	sp.traceJ.Encode(mod)
-
-	if sp.solFile {
-		totScore, maxScore, err := sol.AbsError(mod)
-		if err != nil {
-			return errors.Wrapf(err, "Error calculating AE!")
-		}
-		hellScore, err := sol.HellingerError(mod)
-		if err != nil {
-			return errors.Wrapf(err, "Error calculating Hellinger Err!")
-		}
-		sp.out.Printf("Final TotAE: %.6f nlog=%.3f\n", totScore, -math.Log(totScore))
-		sp.out.Printf("Final MaxAE: %.6f nlog=%.3f\n", maxScore, -math.Log(maxScore))
-		sp.out.Printf("Final HellE: %.6f nlog=%.3f\n", hellScore, -math.Log(hellScore))
-	}
 
 	return nil
 }
