@@ -2,6 +2,8 @@ package main
 
 import "github.com/CraigKelly/grample/cmd"
 
+// TODO: need a convergence metric - will start with G-R
+
 // TODO: need an initial adaptive gibbs sampler (on var selection)
 // TODO: need a collapsing Gibbs sample: both static(at begin) or dynamic(during chain)
 // TODO: combine adaptive/collapse options
