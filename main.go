@@ -2,8 +2,6 @@ package main
 
 import "github.com/CraigKelly/grample/cmd"
 
-// TODO: Grid 12x12 is basically the best that can be calc'ed dynamically, so get grids 12 and 18
-
 // TODO: need an initial adaptive gibbs sampler (on var selection)
 // TODO: need a collapsing Gibbs sample: both static(at begin) or dynamic(during chain)
 // TODO: combine adaptive/collapse options
@@ -14,6 +12,8 @@ import "github.com/CraigKelly/grample/cmd"
 // TODO: at least one unit test for cmd package - and maybe a benchmark?
 
 // TODO: at least one unit test and one benchmark for rand
+
+// TODO: trace file should include final scores for easy read back once we get started
 
 func main() {
 	cmd.Execute()
