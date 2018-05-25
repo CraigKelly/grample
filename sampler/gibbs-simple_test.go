@@ -39,26 +39,18 @@ func TestWorkingGibbsSimple(t *testing.T) {
 
 var modIts int
 
-func BenchmarkGibbsSimple(b *testing.B) {
-	var err error
-
-	reader := model.UAIReader{}
-	mod, err := model.NewModelFromFile(reader, "../res/relational_1.uai", false)
-	if err != nil {
-		b.Fatalf("Could not read rel 1 model %v", err)
-	}
-
+func runBench(b *testing.B, m *model.Model) {
 	gen, err := rand.NewGenerator(42)
 	if err != nil {
 		b.Fatalf("Could not init PRNG %v", err)
 	}
 
-	samp, err := NewGibbsSimple(gen, mod)
+	samp, err := NewGibbsSimple(gen, m)
 	if err != nil {
 		b.Fatalf("Could not create Gibbs-Simple sampler %v", err)
 	}
 
-	oneSample := make([]int, len(mod.Vars))
+	oneSample := make([]int, len(m.Vars))
 
 	b.ResetTimer()
 
@@ -71,4 +63,24 @@ func BenchmarkGibbsSimple(b *testing.B) {
 		it++
 	}
 	modIts = it
+}
+
+func BenchmarkGibbsSimpleNoEvidence(b *testing.B) {
+	reader := model.UAIReader{}
+	mod, err := model.NewModelFromFile(reader, "../res/Promedus_11.uai", false)
+	if err != nil {
+		b.Fatalf("Could not read rel 1 model %v", err)
+	}
+
+	runBench(b, mod)
+}
+
+func BenchmarkGibbsSimpleWithEvidence(b *testing.B) {
+	reader := model.UAIReader{}
+	mod, err := model.NewModelFromFile(reader, "../res/Promedus_11.uai", true)
+	if err != nil {
+		b.Fatalf("Could not read rel 1 model %v", err)
+	}
+
+	runBench(b, mod)
 }
