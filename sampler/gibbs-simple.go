@@ -111,21 +111,21 @@ func NewGibbsSimple(gen *rand.Generator, m *model.Model) (*GibbsSimple, error) {
 }
 
 // Sample returns a single sample - implements FullSampler
-func (g *GibbsSimple) Sample(s []int) error {
+func (g *GibbsSimple) Sample(s []int) (int, error) {
 	if len(s) != len(g.pgm.Vars) {
-		return errors.Errorf("Sample size %d != Var size %d in model %s", len(s), len(g.pgm.Vars), g.pgm.Name)
+		return -1, errors.Errorf("Sample size %d != Var size %d in model %s", len(s), len(g.pgm.Vars), g.pgm.Name)
 	}
 
 	// Select next variable to sample
 	varIdx, err := g.varSelector.VarSample(g.pgm.Vars)
 	if err != nil {
-		return errors.Wrapf(err, "Could not sample from vars in model %s", g.pgm.Name)
+		return -1, errors.Wrapf(err, "Could not sample from vars in model %s", g.pgm.Name)
 	}
 	sampleVar := g.pgm.Vars[varIdx]
 	sampleVar.State["Selections"] += 1.0
 
 	if sampleVar.FixedVal >= 0 {
-		return errors.Errorf("Selected sample variable %v which has FixedVal=%d", sampleVar.Name, sampleVar.FixedVal)
+		return -1, errors.Errorf("Selected sample variable %v which has FixedVal=%d", sampleVar.Name, sampleVar.FixedVal)
 	}
 
 	// Find all related factors and marginalize for sampleVar
@@ -157,7 +157,8 @@ func (g *GibbsSimple) Sample(s []int) error {
 		}
 
 		if callIdx < 0 {
-			return errors.Errorf("Var %d:%s not in function %s var list?!",
+			return -1, errors.Errorf(
+				"Var %d:%s not in function %s var list?!",
 				sampleVar.ID, sampleVar.Name, fun.Name,
 			)
 		}
@@ -169,7 +170,8 @@ func (g *GibbsSimple) Sample(s []int) error {
 			callVals[callIdx] = v
 			result, err := fun.Eval(callVals)
 			if err != nil {
-				return errors.Wrapf(err, "Error generating a sample on function %s with selected variable %d:%s",
+				return -1, errors.Wrapf(err,
+					"Error generating a sample on function %s with selected variable %d:%s",
 					fun.Name, sampleVar.ID, sampleVar.Name,
 				)
 			}
@@ -199,12 +201,12 @@ func (g *GibbsSimple) Sample(s []int) error {
 	}
 
 	if nextVal < 0 {
-		return errors.Errorf("Failed to select a value from var %v, Exp(factor-weights)==%v", sampleVar.Name, sampleWeights)
+		return -1, errors.Errorf("Failed to select a value from var %v, Exp(factor-weights)==%v", sampleVar.Name, sampleWeights)
 	}
 
 	// Update saved copy with new value and copy to caller's sample
 	g.last[varIdx] = nextVal
 	copy(s, g.last)
 
-	return nil
+	return varIdx, nil
 }

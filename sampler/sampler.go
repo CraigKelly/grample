@@ -11,9 +11,10 @@ import (
 // A FullSampler populates the given array with values from the model (e.e.
 // Gibbs sampling).  The array MUST be the same size as the variables being
 // sampled. Note that this call pattern (mutable param) parallels the samplers
-// in the gonum stats subpackags.
+// in the gonum stats subpackags. Samplers update the int slice and then return
+// the index of the selected variable updated.
 type FullSampler interface {
-	Sample([]int) error
+	Sample([]int) (int, error)
 }
 
 // A VarSampler selects from an array of variables with some probability.
@@ -53,10 +54,12 @@ func (s *UniformSampler) UniSample(card int) (int, error) {
 	if card < 1 {
 		return -1, errors.New("Can not sample if Cardinality < 1")
 	}
+
 	const maxCard = 1 << 30
 	if card > maxCard {
 		return -1, errors.Errorf("Cardinality above %d not supported", maxCard)
 	}
+
 	if card == 1 {
 		return 0, nil
 	}

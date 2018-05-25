@@ -26,7 +26,8 @@ func TestWorkingGibbsSimple(t *testing.T) {
 	oneSample := make([]int, 1)
 	counts := make([]int, 2)
 	for i := 0; i < 1024; i++ {
-		err = samp.Sample(oneSample)
+		idx, err := samp.Sample(oneSample)
+		assert.Equal(0, idx)
 		assert.NoError(err)
 		counts[oneSample[0]]++
 	}
@@ -63,7 +64,7 @@ func BenchmarkGibbsSimple(b *testing.B) {
 
 	it := 0
 	for i := 0; i < b.N; i++ {
-		err = samp.Sample(oneSample)
+		_, err := samp.Sample(oneSample)
 		if err != nil {
 			b.Fatalf("Failure on single sample (it %d) %v", i, err)
 		}

@@ -230,7 +230,7 @@ func modelMarginals(sp *startupParams) error {
 
 	sp.out.Printf("Performing burn-in (%d)\n", sp.burnIn)
 	for it := int64(1); it <= sp.burnIn; it++ {
-		err = samp.Sample(oneSample)
+		_, err = samp.Sample(oneSample)
 		if err != nil {
 			return errors.Wrapf(err, "Error during burn in on it %d", it)
 		}
@@ -253,12 +253,18 @@ func modelMarginals(sp *startupParams) error {
 	sampleCount := int64(0)
 	keepWorking := true
 	for keepWorking {
-		err = samp.Sample(oneSample)
+		varIdx, err := samp.Sample(oneSample)
 		if err != nil {
 			return errors.Wrapf(err, "Error during main iteration it %d", it)
 		}
+		if varIdx < 0 || mod.Vars[varIdx].FixedVal >= 0 {
+			return errors.New("Invalid sample")
+		}
 
-		// Only trace and update marginals if we accept the sample
+		// Only trace and update marginals if we accept the sample.
+		//Note that in the limit, every sample is from the joint distribution,
+		//but we only update the marginal counts for the variable selected on
+		//this iteration.
 		if gen.Float64() <= sp.sampleRate {
 			sampleCount++
 
@@ -266,12 +272,8 @@ func modelMarginals(sp *startupParams) error {
 				sp.traceJ.Encode(oneSample) // Only trace samples when verbose
 			}
 
-			for i, v := range mod.Vars {
-				// Only update marginal counts if this isn't a fixed var (evidence)
-				if v.FixedVal < 0 {
-					v.Marginal[oneSample[i]] += 1.0
-				}
-			}
+			currVarVal := oneSample[varIdx]
+			mod.Vars[varIdx].Marginal[currVarVal] += 1.0
 		}
 
 		// Time checking and status updates
