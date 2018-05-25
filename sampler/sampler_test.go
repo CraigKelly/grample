@@ -42,6 +42,9 @@ func TestUniformSampler(t *testing.T) {
 	i, e = uni.UniSample(0)
 	assert.Error(e)
 
+	i, e = uni.UniSample((1 << 30) + 1)
+	assert.Error(e)
+
 	i, e = uni.UniSample(1)
 	assert.NoError(e)
 	assert.Equal(0, i)

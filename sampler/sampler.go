@@ -17,7 +17,7 @@ type FullSampler interface {
 }
 
 // A VarSampler selects from an array of variables with some probability.
-// Currently used select the next variable to sample in a chain in our Gibbs
+// Currently used yo select the next variable to sample in a chain in our Gibbs
 // sampler.
 type VarSampler interface {
 	VarSample(vs []*model.Variable) (int, error)
@@ -52,6 +52,10 @@ func NewUniformSampler(gen *rand.Generator, maxVars int) (*UniformSampler, error
 func (s *UniformSampler) UniSample(card int) (int, error) {
 	if card < 1 {
 		return -1, errors.New("Can not sample if Cardinality < 1")
+	}
+	const maxCard = 1 << 30
+	if card > maxCard {
+		return -1, errors.Errorf("Cardinality above %d not supported", maxCard)
 	}
 	if card == 1 {
 		return 0, nil
