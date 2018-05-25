@@ -99,7 +99,7 @@ func NewGibbsSimple(gen *rand.Generator, m *model.Model) (*GibbsSimple, error) {
 		if v.FixedVal >= 0 {
 			s.last[i] = v.FixedVal
 		} else {
-			val, err := uniform.ValSample(v.Card)
+			val, err := uniform.UniSample(v.Card)
 			if err != nil {
 				return nil, errors.Wrapf(err, "Could not generate start sample for variable %v", v.Name)
 			}

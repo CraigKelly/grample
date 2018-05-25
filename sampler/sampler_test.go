@@ -39,10 +39,10 @@ func TestUniformSampler(t *testing.T) {
 	var i int
 	var e error
 
-	i, e = uni.ValSample(0)
+	i, e = uni.UniSample(0)
 	assert.Error(e)
 
-	i, e = uni.ValSample(1)
+	i, e = uni.UniSample(1)
 	assert.NoError(e)
 	assert.Equal(0, i)
 

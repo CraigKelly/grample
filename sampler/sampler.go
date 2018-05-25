@@ -16,13 +16,6 @@ type FullSampler interface {
 	Sample([]int) error
 }
 
-// A ValSampler returns a sample given a cardinality. We assume the possible
-// values are 0 to Cardinality-1. Mainly used to select a starting point for a
-// Gibbs-style sampler.
-type ValSampler interface {
-	ValSample(card int) (int, error)
-}
-
 // A VarSampler selects from an array of variables with some probability.
 // Currently used select the next variable to sample in a chain in our Gibbs
 // sampler.
@@ -55,8 +48,8 @@ func NewUniformSampler(gen *rand.Generator, maxVars int) (*UniformSampler, error
 	return s, nil
 }
 
-// ValSample implements ValSampler interface
-func (s *UniformSampler) ValSample(card int) (int, error) {
+// UniSample samples uniformly from [0, card).
+func (s *UniformSampler) UniSample(card int) (int, error) {
 	if card < 1 {
 		return -1, errors.New("Can not sample if Cardinality < 1")
 	}
@@ -96,7 +89,7 @@ func (s *UniformSampler) VarSample(vs []*model.Variable) (int, error) {
 	}
 
 	// Select an entry from our list and return the corresponding index
-	i, e := s.ValSample(targetCount)
+	i, e := s.UniSample(targetCount)
 	if e != nil {
 		return -1, e
 	}
