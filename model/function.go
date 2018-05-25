@@ -105,11 +105,11 @@ func (f *Function) UseLogSpace() error {
 		return errors.New("IsLog already set - double-call detected")
 	}
 
-	const eps = 1e-8
+	const eps = 1e-6 // log(0) is invalid, so add epsilon to 0 values
 
 	for i, v := range f.Table {
 		if v < eps {
-			v = eps
+			v += eps
 		}
 		f.Table[i] = math.Log(v)
 	}
