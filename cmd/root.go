@@ -183,7 +183,7 @@ func modelMarginals(sp *startupParams) error {
 
 		totScore, maxScore, err := sol.AbsError(mod)
 		if err != nil {
-			return errors.Wrapf(err, "Error calculation init score on startup")
+			return errors.Wrapf(err, "Error calculating init score on startup")
 		}
 		hellScore, err := sol.HellingerError(mod)
 		if err != nil {
@@ -262,9 +262,9 @@ func modelMarginals(sp *startupParams) error {
 		}
 
 		// Only trace and update marginals if we accept the sample.
-		//Note that in the limit, every sample is from the joint distribution,
-		//but we only update the marginal counts for the variable selected on
-		//this iteration.
+		// Note that in the limit, every sample is from the joint distribution,
+		// but we only update the marginal counts for the variable selected on
+		// this iteration.
 		if gen.Float64() <= sp.sampleRate {
 			sampleCount++
 
