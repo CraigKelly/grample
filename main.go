@@ -2,10 +2,6 @@ package main
 
 import "github.com/CraigKelly/grample/cmd"
 
-// TODO: refactor error/distance/divergence metrics
-// TODO: add Jensen-Shannon to metrics
-// TODO: Create GR diagnostic, accepting any of our metrics
-
 // TODO: need an initial adaptive gibbs sampler (on var selection)
 // TODO: need a collapsing Gibbs sample: both static(at begin) or dynamic(during chain)
 // TODO: combine adaptive/collapse options
