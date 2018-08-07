@@ -148,8 +148,6 @@ func TestUAIMarSolFile(t *testing.T) {
 	hellExp := math.Sqrt(p1+p2) / math.Sqrt2
 	assert.InEpsilon(hellExp, es.MeanHellinger, 1e-8)
 	assert.InEpsilon(hellExp, es.MaxHellinger, 1e-8)
-
-	// TODO: add JS check test
 }
 
 // Test reading evidence

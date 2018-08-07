@@ -7,7 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestErrorSuite(t *testing.T) {
+// Easy - max and mean are the same so we can test normed or not
+func TestErrorSuiteNormed(t *testing.T) {
 	assert := assert.New(t)
 
 	vars1 := []*Variable{
@@ -20,6 +21,7 @@ func TestErrorSuite(t *testing.T) {
 	}
 
 	// Calculate mean hellinger
+	// Should come out to 0.18459191128251448
 	p1 := math.Pow(math.Sqrt(0.75)-math.Sqrt(0.50), 2)
 	p2 := math.Pow(math.Sqrt(0.25)-math.Sqrt(0.50), 2)
 	hellExp := math.Sqrt(p1+p2) / math.Sqrt2
@@ -40,16 +42,18 @@ func TestErrorSuite(t *testing.T) {
 	var err error
 	const eps = 1e-8
 
-	// TODO: max also
-
 	// 2 non-normed
 
 	suite, err = NewErrorSuite(vars1, vars2)
 	assert.NoError(err)
 	assert.InEpsilon(0.25, suite.MeanMeanAbsError, eps)
+	assert.InEpsilon(0.25, suite.MaxMeanAbsError, eps)
 	assert.InEpsilon(0.25, suite.MeanMaxAbsError, eps)
+	assert.InEpsilon(0.25, suite.MaxMaxAbsError, eps)
 	assert.InEpsilon(hellExp, suite.MeanHellinger, eps)
+	assert.InEpsilon(hellExp, suite.MaxHellinger, eps)
 	assert.InEpsilon(jsExp, suite.MeanJSDiverge, eps)
+	assert.InEpsilon(jsExp, suite.MaxJSDiverge, eps)
 
 	// 1 non-normed
 
@@ -59,9 +63,13 @@ func TestErrorSuite(t *testing.T) {
 	suite, err = NewErrorSuite(vars1, vars2)
 	assert.NoError(err)
 	assert.InEpsilon(0.25, suite.MeanMeanAbsError, eps)
+	assert.InEpsilon(0.25, suite.MaxMeanAbsError, eps)
 	assert.InEpsilon(0.25, suite.MeanMaxAbsError, eps)
+	assert.InEpsilon(0.25, suite.MaxMaxAbsError, eps)
 	assert.InEpsilon(hellExp, suite.MeanHellinger, eps)
+	assert.InEpsilon(hellExp, suite.MaxHellinger, eps)
 	assert.InEpsilon(jsExp, suite.MeanJSDiverge, eps)
+	assert.InEpsilon(jsExp, suite.MaxJSDiverge, eps)
 
 	// All normed
 	assert.NoError(vars1[1].NormMarginal())
@@ -70,7 +78,42 @@ func TestErrorSuite(t *testing.T) {
 	suite, err = NewErrorSuite(vars1, vars2)
 	assert.NoError(err)
 	assert.InEpsilon(0.25, suite.MeanMeanAbsError, eps)
+	assert.InEpsilon(0.25, suite.MaxMeanAbsError, eps)
 	assert.InEpsilon(0.25, suite.MeanMaxAbsError, eps)
+	assert.InEpsilon(0.25, suite.MaxMaxAbsError, eps)
 	assert.InEpsilon(hellExp, suite.MeanHellinger, eps)
+	assert.InEpsilon(hellExp, suite.MaxHellinger, eps)
 	assert.InEpsilon(jsExp, suite.MeanJSDiverge, eps)
+	assert.InEpsilon(jsExp, suite.MaxJSDiverge, eps)
+}
+
+// Not so easy = we want mean and max to be different
+func TestErrorSuiteMaxMean(t *testing.T) {
+	assert := assert.New(t)
+
+	// We manually calculated our expected values for these variables
+
+	vars1 := []*Variable{
+		&Variable{0, "V1", 3, -1, []float64{30.0, 40.0, 30.0}, nil},
+		&Variable{0, "V2", 3, -1, []float64{30.0, 40.0, 30.0}, nil},
+	}
+	vars2 := []*Variable{
+		&Variable{0, "V1", 3, -1, []float64{90.0, 5.0, 5.0}, nil},
+		&Variable{0, "V2", 3, -1, []float64{60.0, 30.0, 10.0}, nil},
+	}
+
+	var suite *ErrorSuite
+	var err error
+	const eps = 1e-7 // Hand calcs, slightly larger eps
+
+	suite, err = NewErrorSuite(vars1, vars2)
+	assert.NoError(err)
+	assert.InEpsilon(.30000000, suite.MeanMeanAbsError, eps)
+	assert.InEpsilon(.39999999, suite.MaxMeanAbsError, eps)
+	assert.InEpsilon(.45000000, suite.MeanMaxAbsError, eps)
+	assert.InEpsilon(.60000000, suite.MaxMaxAbsError, eps)
+	assert.InEpsilon(.35109087, suite.MeanHellinger, eps)
+	assert.InEpsilon(.46528369, suite.MaxHellinger, eps)
+	assert.InEpsilon(.18806933, suite.MeanJSDiverge, eps)
+	assert.InEpsilon(.29645726, suite.MaxJSDiverge, eps)
 }
