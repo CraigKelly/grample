@@ -185,9 +185,16 @@ func HellingerDiff(v1 *Variable, v2 *Variable) float64 {
 // the arrays are assumed normalized (so sum(p1) == sum(p2) == 1.0)
 // klDivergence(P, Q) <==> D_{KL}(P || Q)
 func klDivergence(v1 []float64, v2 []float64) float64 {
+	const eps = float64(1e-12)
 	diverge := float64(0.0)
 	for i, p1 := range v1 {
 		p2 := v2[i]
+		if p1 < eps {
+			p1 = eps
+		}
+		if p2 < eps {
+			p2 = eps
+		}
 		diverge += p1 * math.Log2(p1/p2)
 	}
 
