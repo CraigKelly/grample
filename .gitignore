@@ -3,6 +3,7 @@ grample
 *.swp
 cover.html
 *.json
+temp.*
 
 # Binaries for programs and plugins
 *.exe
