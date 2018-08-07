@@ -136,11 +136,11 @@ func TestJSDiverge(t *testing.T) {
 		_P = P / norm(P, ord=1)
 		_Q = Q / norm(Q, ord=1)
 		_M = 0.5 * (_P + _Q)
-		return 0.5 * (entropy(_P, _M) + entropy(_Q, _M))
+		return 0.5 * (entropy(_P, _M, base=2) + entropy(_Q, _M, base=2))
 
 	print(JSD([0.5, 0.5], [0.25, 0.75]))
 	*/
-	jsExp := 0.033822075568605205
+	jsExp := 0.0487949406953985
 
 	var js float64
 	var err error

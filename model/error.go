@@ -140,34 +140,15 @@ func HellingerError(vars1 []*Variable, vars2 []*Variable) (float64, error) {
 	return totErr / float64(varCount), nil
 }
 
-// klDivergence returns the Kullback–Leibler divergence, which is non-symmetric!
-// It is mainly here to be used by JSDivergence. Thus the lack of error checking.
+// klDivergence returns the Kullback–Leibler divergence, which is
+// non-symmetric! This is strictly a subroutine for JS Divergence, so there
+// is no error checking, the marginal values are operated on directly, and
+// the arrays are assumed normalized (so sum(p1) == sum(p2) == 1.0)
 // klDivergence(P, Q) <==> D_{KL}(P || Q)
-func klDivergence(v1 *Variable, v2 *Variable) float64 {
-	const eps = float64(1e-12)
-
-	card := v1.Card
-
-	// get totals for normalizing
-	tot1, tot2 := float64(0.0), float64(0.0)
-	for c := 0; c < card; c++ {
-		tot1 += v1.Marginal[c]
-		tot2 += v2.Marginal[c]
-	}
-	if tot1 < eps {
-		tot1 = eps
-	}
-	if tot2 < eps {
-		tot2 = eps
-	}
-
-	// accumulate error (normalizing model var).
+func klDivergence(v1 []float64, v2 []float64) float64 {
 	diverge := float64(0.0)
-	for c := 0; c < card; c++ {
-		p1 := v1.Marginal[c]
-		p2 := v2.Marginal[c]
-		// Note that log2 is intentionally - we want the JS Divergence for 2 discrete
-		// variables to be 0 <= x <= 1
+	for i, p1 := range v1 {
+		p2 := v2[i]
 		diverge += p1 * math.Log2(p1/p2)
 	}
 
@@ -201,12 +182,15 @@ func JSDivergence(v1 *Variable, v2 *Variable) (float64, error) {
 		tot2 = eps
 	}
 
-	probMarginal := make([]float64, card)
+	p1Norm := make([]float64, card)
+	p2Norm := make([]float64, card)
+	mid := make([]float64, card)
 	for i, p1 := range v1.Marginal {
 		p2 := v2.Marginal[i]
-		probMarginal[i] = (p1 + p2) * 0.5
+		p1Norm[i] = p1 / tot1
+		p2Norm[i] = p2 / tot2
+		mid[i] = (p1Norm[i] + p2Norm[i]) * 0.5
 	}
 
-	vMid := &Variable{0, "V1", 2, -1, probMarginal, nil}
-	return 0.5 * (klDivergence(v1, vMid) + klDivergence(v2, vMid)), nil
+	return 0.5 * (klDivergence(p1Norm, mid) + klDivergence(p2Norm, mid)), nil
 }
