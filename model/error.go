@@ -6,9 +6,9 @@ import (
 	"github.com/pkg/errors"
 )
 
-// TODO: add Jensen-Shannon to metrics
+// TODO: unit test Jensen-Shannon
+// TODO: split out Hellinger error for vars (needed for GR)
 // TODO: Create GR diagnostic, accepting any of our metrics
-// TODO: better unit testing for these methods
 
 // All error functions accept 2 variable arrays that must be of the same length
 
@@ -138,4 +138,75 @@ func HellingerError(vars1 []*Variable, vars2 []*Variable) (float64, error) {
 	}
 
 	return totErr / float64(varCount), nil
+}
+
+// klDivergence returns the Kullback–Leibler divergence, which is non-symmetric!
+// It is mainly here to be used by JSDivergence. Thus the lack of error checking.
+// klDivergence(P, Q) <==> D_{KL}(P || Q)
+func klDivergence(v1 *Variable, v2 *Variable) float64 {
+	const eps = float64(1e-12)
+
+	card := v1.Card
+
+	// get totals for normalizing
+	tot1, tot2 := float64(0.0), float64(0.0)
+	for c := 0; c < card; c++ {
+		tot1 += v1.Marginal[c]
+		tot2 += v2.Marginal[c]
+	}
+	if tot1 < eps {
+		tot1 = eps
+	}
+	if tot2 < eps {
+		tot2 = eps
+	}
+
+	// accumulate error (normalizing model var).
+	diverge := float64(0.0)
+	for c := 0; c < card; c++ {
+		p1 := v1.Marginal[c]
+		p2 := v2.Marginal[c]
+		// Note that log2 is intentionally - we want the JS Divergence for 2 discrete
+		// variables to be 0 <= x <= 1
+		diverge += p1 * math.Log2(p1/p2)
+	}
+
+	return diverge
+}
+
+// JSDivergence returns the Jensen-Shannon divergence, which is a
+// symmetric gneralization of the KL divergence
+func JSDivergence(v1 *Variable, v2 *Variable) (float64, error) {
+	const eps = float64(1e-12)
+
+	if v1.FixedVal >= 0 || v2.FixedVal >= 0 {
+		return math.NaN(), errors.Errorf("Variable is fixed val")
+	}
+
+	card := v1.Card
+	if card != v2.Card {
+		return math.NaN(), errors.Errorf("Variable card mismatch %d != %d", card, v2.Card)
+	}
+
+	// get totals for normalizing
+	tot1, tot2 := float64(0.0), float64(0.0)
+	for c := 0; c < card; c++ {
+		tot1 += v1.Marginal[c]
+		tot2 += v2.Marginal[c]
+	}
+	if tot1 < eps {
+		tot1 = eps
+	}
+	if tot2 < eps {
+		tot2 = eps
+	}
+
+	probMarginal := make([]float64, card)
+	for i, p1 := range v1.Marginal {
+		p2 := v2.Marginal[i]
+		probMarginal[i] = (p1 + p2) * 0.5
+	}
+
+	vMid := &Variable{0, "V1", 2, -1, probMarginal, nil}
+	return 0.5 * (klDivergence(v1, vMid) + klDivergence(v2, vMid)), nil
 }

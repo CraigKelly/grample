@@ -120,3 +120,62 @@ func TestHellingerError(t *testing.T) {
 	assert.NoError(err)
 	assert.InEpsilon(hellExp, hell, 1e-8)
 }
+
+func TestJSDiverge(t *testing.T) {
+	assert := assert.New(t)
+
+	v1 := &Variable{0, "V1", 2, -1, []float64{25.0, 75.0}, nil}
+	v2 := &Variable{0, "V2", 2, -1, []float64{42.0, 42.0}, nil}
+
+	/* Calculated via Python with
+	from scipy.stats import entropy
+	from numpy.linalg import norm
+	import numpy as np
+
+	def JSD(P, Q):
+		_P = P / norm(P, ord=1)
+		_Q = Q / norm(Q, ord=1)
+		_M = 0.5 * (_P + _Q)
+		return 0.5 * (entropy(_P, _M) + entropy(_Q, _M))
+
+	print(JSD([0.5, 0.5], [0.25, 0.75]))
+	*/
+	jsExp := 0.033822075568605205
+
+	var js float64
+	var err error
+
+	// 2 non-normed
+
+	js, err = JSDivergence(v1, v2)
+	assert.NoError(err)
+	assert.InEpsilon(jsExp, js, 1e-12)
+
+	js, err = JSDivergence(v2, v1)
+	assert.NoError(err)
+	assert.InEpsilon(jsExp, js, 1e-12)
+
+	// 1 non-normed
+
+	assert.NoError(v1.NormMarginal())
+
+	js, err = JSDivergence(v1, v2)
+	assert.NoError(err)
+	assert.InEpsilon(jsExp, js, 1e-12)
+
+	js, err = JSDivergence(v2, v1)
+	assert.NoError(err)
+	assert.InEpsilon(jsExp, js, 1e-12)
+
+	// All normed
+
+	assert.NoError(v2.NormMarginal())
+
+	js, err = JSDivergence(v1, v2)
+	assert.NoError(err)
+	assert.InEpsilon(jsExp, js, 1e-12)
+
+	js, err = JSDivergence(v2, v1)
+	assert.NoError(err)
+	assert.InEpsilon(jsExp, js, 1e-12)
+}
