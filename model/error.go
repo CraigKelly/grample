@@ -176,7 +176,7 @@ func HellingerDiff(v1 *Variable, v2 *Variable) float64 {
 		err := math.Pow(adjVal1-adjVal2, 2) // squared, so always positive
 		errSum += err
 	}
-	return errSum / math.Sqrt2
+	return math.Sqrt(errSum) / math.Sqrt2
 }
 
 // klDivergence returns the Kullback–Leibler divergence, which is

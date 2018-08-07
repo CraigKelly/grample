@@ -178,7 +178,7 @@ func modelMarginals(sp *startupParams) error {
 	errorReport := func(prefix string, es *model.ErrorSuite, short bool) {
 		if short {
 			errorBuffer.Reset()
-			patt := "%s=>%.6f(%7.3f),X%.6f(%7.3f)"
+			patt := "%s=>%.6f(%7.3f),X%.6f(%7.3f) | "
 			fmt.Fprintf(
 				&errorBuffer, patt, "MAE",
 				es.MeanMeanAbsError, -math.Log2(es.MeanMeanAbsError),

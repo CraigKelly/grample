@@ -145,7 +145,7 @@ func TestUAIMarSolFile(t *testing.T) {
 	// Hellinger we just calculate directly
 	p1 := math.Pow(math.Sqrt(0.75)-math.Sqrt(0.50), 2)
 	p2 := math.Pow(math.Sqrt(0.25)-math.Sqrt(0.50), 2)
-	hellExp := (p1 + p2) / math.Sqrt2
+	hellExp := math.Sqrt(p1+p2) / math.Sqrt2
 	assert.InEpsilon(hellExp, es.MeanHellinger, 1e-8)
 	assert.InEpsilon(hellExp, es.MaxHellinger, 1e-8)
 

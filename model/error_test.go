@@ -22,7 +22,7 @@ func TestErrorSuite(t *testing.T) {
 	// Calculate mean hellinger
 	p1 := math.Pow(math.Sqrt(0.75)-math.Sqrt(0.50), 2)
 	p2 := math.Pow(math.Sqrt(0.25)-math.Sqrt(0.50), 2)
-	hellExp := (p1 + p2) / math.Sqrt2
+	hellExp := math.Sqrt(p1+p2) / math.Sqrt2
 
 	/* JS Divergence calc via python with from scipy.stats import entropy
 	from numpy.linalg import norm
