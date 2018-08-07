@@ -6,137 +6,177 @@ import (
 	"github.com/pkg/errors"
 )
 
-// TODO: split out Hellinger error for vars (needed for GR)
-// TODO: Create GR diagnostic, accepting any of our metrics
+// TODO: ErrorSuite creation/method for GR diagnostic
 
-// All error functions accept 2 variable arrays that must be of the same length
+// ErrorSuite represents all the loss/error functions we use to judge progress
+// across joint dist. Errors beginning with Mean are the mean across all the
+// variables in the joint distribution while Max is the maximum value for all
+// the variables. So MeanMaxAbsError is the MEAN of the Maximum Absoulte Error
+// for each of the marginal variables. Likewise, MaxMeanAbsError represents the
+// maximum value of the mean difference between two random variables.
+type ErrorSuite struct {
+	MeanMeanAbsError float64
+	MeanMaxAbsError  float64
+	MeanHellinger    float64
+	MeanJSDiverge    float64
 
-// AbsError returns both the total and max absolute error between the model's
-// current marginal estimations and this solution. The final score is the mean
-// over all variables. The solution marginal is assumed to be normalized, the
-// model variables are NOT.
-func AbsError(vars1 []*Variable, vars2 []*Variable) (absErrMean float64, maxErrMean float64, failed error) {
+	MaxMeanAbsError float64
+	MaxMaxAbsError  float64
+	MaxHellinger    float64
+	MaxJSDiverge    float64
+}
+
+// NewErrorSuite returns an ErrorSuite with all calculated error functions
+func NewErrorSuite(vars1 []*Variable, vars2 []*Variable) (*ErrorSuite, error) {
 	if len(vars1) != len(vars1) {
-		return math.NaN(), math.NaN(), errors.Errorf("Variable count mismatch %d != %d", len(vars1), len(vars1))
+		return nil, errors.Errorf("Variable count mismatch %d != %d", len(vars1), len(vars1))
 	}
 
-	totErrSum := float64(0.0) // Total error
-	totErrMax := float64(0.0) // Total MAX error (max per var)
-	const eps = float64(1e-12)
-
-	// Remember that we skip vars
 	varCount := 0
-
 	for i, v1 := range vars1 {
 		v2 := vars2[i]
-		if v1.FixedVal >= 0 || v2.FixedVal >= 0 {
-			continue
+		if v1.Card != v2.Card {
+			return nil, errors.Errorf("Variable card mismatch %d != %d", v1.Card, v2.Card)
 		}
-
-		varCount++
-
-		card := v1.Card
-		if card != v2.Card {
-			return math.NaN(), math.NaN(), errors.Errorf("Variable %d card mismatch %d != %d", i, card, v2.Card)
+		if v1.FixedVal < 0 && v2.FixedVal < 0 {
+			varCount++
 		}
-
-		// get totals for normalizing
-		tot1, tot2 := float64(0.0), float64(0.0)
-		for c := 0; c < card; c++ {
-			tot1 += v1.Marginal[c]
-			tot2 += v2.Marginal[c]
-		}
-		if tot1 < eps {
-			tot1 = eps
-		}
-		if tot2 < eps {
-			tot2 = eps
-		}
-
-		// accumulate error (normalizing model var)
-		maxErr := float64(0.0)
-		for c := 0; c < card; c++ {
-			adjVal1 := v1.Marginal[c] / tot1
-			adjVal2 := v2.Marginal[c] / tot2
-			err := math.Abs(adjVal1 - adjVal2)
-
-			totErrSum += err // Just accumulate for total error
-
-			if c == 0 || err > maxErr {
-				maxErr = err // Found the max error
-			}
-		}
-		totErrMax += maxErr
 	}
 
 	if varCount < 1 {
-		return math.NaN(), math.NaN(), errors.Errorf("No un-fixed vars found to score")
+		return nil, errors.Errorf("No un-fixed vars to score")
 	}
 
-	absErrMean = totErrSum / float64(varCount)
-	maxErrMean = totErrMax / float64(varCount)
-	return
+	es := ErrorSuite{}
+
+	var d float64
+	for i, v1 := range vars1 {
+		v2 := vars2[i]
+
+		d = MeanAbsDiff(v1, v2)
+		es.MeanMeanAbsError += d
+		es.MaxMeanAbsError = math.Max(d, es.MaxMeanAbsError)
+
+		d = MaxAbsDiff(v1, v2)
+		es.MeanMaxAbsError += d
+		es.MaxMaxAbsError = math.Max(d, es.MaxMaxAbsError)
+
+		d = HellingerDiff(v1, v2)
+		es.MeanHellinger += d
+		es.MaxHellinger = math.Max(d, es.MaxHellinger)
+
+		d = JSDivergence(v1, v2)
+		es.MeanJSDiverge += d
+		es.MaxJSDiverge = math.Max(d, es.MaxJSDiverge)
+	}
+
+	fc := float64(varCount)
+	es.MeanMeanAbsError /= fc
+	es.MeanMaxAbsError /= fc
+	es.MeanHellinger /= fc
+	es.MeanJSDiverge /= fc
+
+	return &es, nil
 }
 
-// HellingerError returns the Hellinger error between the model's current
+// MaxAbsDiff returns the maximum difference found between the two prob dists
+func MaxAbsDiff(v1 *Variable, v2 *Variable) float64 {
+	card := v1.Card
+
+	// get totals for normalizing
+	tot1, tot2 := float64(0.0), float64(0.0)
+	const eps = 1e-12
+
+	for c := 0; c < card; c++ {
+		tot1 += v1.Marginal[c]
+		tot2 += v2.Marginal[c]
+	}
+	if tot1 < eps {
+		tot1 = eps
+	}
+	if tot2 < eps {
+		tot2 = eps
+	}
+
+	maxErr := float64(0.0)
+	for c := 0; c < card; c++ {
+		adjVal1 := v1.Marginal[c] / tot1
+		adjVal2 := v2.Marginal[c] / tot2
+		err := math.Abs(adjVal1 - adjVal2)
+		if c == 0 || err > maxErr {
+			maxErr = err
+		}
+	}
+
+	return maxErr
+}
+
+// MeanAbsDiff returns the mean of the differenced found between the two prob dists
+func MeanAbsDiff(v1 *Variable, v2 *Variable) float64 {
+	card := v1.Card
+
+	if card < 1 {
+		return 0
+	}
+
+	// get totals for normalizing
+	tot1, tot2 := float64(0.0), float64(0.0)
+	const eps = 1e-12
+
+	for c := 0; c < card; c++ {
+		tot1 += v1.Marginal[c]
+		tot2 += v2.Marginal[c]
+	}
+	if tot1 < eps {
+		tot1 = eps
+	}
+	if tot2 < eps {
+		tot2 = eps
+	}
+
+	errSum := float64(0.0)
+	for c := 0; c < card; c++ {
+		adjVal1 := v1.Marginal[c] / tot1
+		adjVal2 := v2.Marginal[c] / tot2
+		errSum += math.Abs(adjVal1 - adjVal2)
+	}
+
+	return errSum / float64(card)
+}
+
+// HellingerDiff returns the Hellinger error between the model's current
 // marginal estimate and this solution. Like AbsError, the result is the
 // average over the variables, the solution's marginals are assumed normalized
 // (sum=1.0), while the model's marginals are assumed non-normalized (but
 // positive)
-func HellingerError(vars1 []*Variable, vars2 []*Variable) (float64, error) {
-	if len(vars1) != len(vars2) {
-		return math.NaN(), errors.Errorf("Solution var count %d != model var count %d", len(vars1), len(vars2))
+func HellingerDiff(v1 *Variable, v2 *Variable) float64 {
+	card := v1.Card
+
+	// get totals for normalizing
+	tot1, tot2 := float64(0.0), float64(0.0)
+	const eps = 1e-12
+
+	for c := 0; c < card; c++ {
+		tot1 += v1.Marginal[c]
+		tot2 += v2.Marginal[c]
+	}
+	if tot1 < eps {
+		tot1 = eps
+	}
+	if tot2 < eps {
+		tot2 = eps
 	}
 
-	totErr := float64(0.0)
-	const eps = float64(1e-12)
-
-	// No fixed vars
-	varCount := 0
-
-	for i, v1 := range vars1 {
-		v2 := vars2[i]
-		if v1.FixedVal >= 0 || v2.FixedVal >= 0 {
-			continue
-		}
-
-		varCount++
-
-		card := v1.Card
-		if card != v2.Card {
-			return math.NaN(), errors.Errorf("Variable %d card mismatch %d != %d", i, card, v2.Card)
-		}
-
-		// get totals for normalizing
-		tot1, tot2 := float64(0.0), float64(0.0)
-		for c := 0; c < card; c++ {
-			tot1 += v1.Marginal[c]
-			tot2 += v2.Marginal[c]
-		}
-		if tot1 < eps {
-			tot1 = eps
-		}
-		if tot2 < eps {
-			tot2 = eps
-		}
-
-		// accumulate error (normalizing model var). Hellinger distance is
-		// similar to the Euclidean L2: sum((sqrt(p) - sqrt(q))**2) / sqrt(2)
-		errSum := float64(0.0)
-		for c := 0; c < card; c++ {
-			adjVal1 := math.Sqrt(v1.Marginal[c] / tot1)
-			adjVal2 := math.Sqrt(v2.Marginal[c] / tot2)
-			err := math.Pow(adjVal1-adjVal2, 2) // squared, so always positive
-			errSum += err
-		}
-		totErr += errSum / math.Sqrt2
+	// Hellinger distance is similar to the Euclidean L2:
+	// sum((sqrt(p) - sqrt(q))**2) / sqrt(2)
+	errSum := float64(0.0)
+	for c := 0; c < card; c++ {
+		adjVal1 := math.Sqrt(v1.Marginal[c] / tot1)
+		adjVal2 := math.Sqrt(v2.Marginal[c] / tot2)
+		err := math.Pow(adjVal1-adjVal2, 2) // squared, so always positive
+		errSum += err
 	}
-
-	if varCount < 1 {
-		return math.NaN(), errors.Errorf("No un-fixed vars to score")
-	}
-
-	return totErr / float64(varCount), nil
+	return errSum / math.Sqrt2
 }
 
 // klDivergence returns the Kullback–Leibler divergence, which is
@@ -156,17 +196,10 @@ func klDivergence(v1 []float64, v2 []float64) float64 {
 
 // JSDivergence returns the Jensen-Shannon divergence, which is a
 // symmetric gneralization of the KL divergence
-func JSDivergence(v1 *Variable, v2 *Variable) (float64, error) {
+func JSDivergence(v1 *Variable, v2 *Variable) float64 {
 	const eps = float64(1e-12)
 
-	if v1.FixedVal >= 0 || v2.FixedVal >= 0 {
-		return math.NaN(), errors.Errorf("Variable is fixed val")
-	}
-
 	card := v1.Card
-	if card != v2.Card {
-		return math.NaN(), errors.Errorf("Variable card mismatch %d != %d", card, v2.Card)
-	}
 
 	// get totals for normalizing
 	tot1, tot2 := float64(0.0), float64(0.0)
@@ -191,5 +224,5 @@ func JSDivergence(v1 *Variable, v2 *Variable) (float64, error) {
 		mid[i] = (p1Norm[i] + p2Norm[i]) * 0.5
 	}
 
-	return 0.5 * (klDivergence(p1Norm, mid) + klDivergence(p2Norm, mid)), nil
+	return 0.5 * (klDivergence(p1Norm, mid) + klDivergence(p2Norm, mid))
 }

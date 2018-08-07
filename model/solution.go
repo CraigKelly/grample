@@ -58,12 +58,8 @@ func (s *Solution) Check(m *Model) error {
 	return nil
 }
 
-// AbsError is a helper method to return AbsError for the current solution against the given model
-func (s *Solution) AbsError(m *Model) (absErrMean float64, maxErrMean float64, failed error) {
-	return AbsError(s.Vars, m.Vars)
-}
-
-// HellingerError is a helper method to return HellingerError for the current solution against the given model
-func (s *Solution) HellingerError(m *Model) (float64, error) {
-	return HellingerError(s.Vars, m.Vars)
+// Error is a helper method to return the entire error suite we offer for the
+// current solution against the given model
+func (s *Solution) Error(m *Model) (*ErrorSuite, error) {
+	return NewErrorSuite(s.Vars, m.Vars)
 }

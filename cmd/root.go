@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math"
 	"os"
 	"strings"
 	"time"
@@ -173,6 +172,17 @@ func modelMarginals(sp *startupParams) error {
 		return err
 	}
 
+	// Helper func for writing out an error suite of scoring
+	errorReport := func(prefix string, es *model.ErrorSuite, short bool) {
+		// TODO: better output for both long and short (and include nlog)
+		//       ex: sp.out.Printf("Start TotAE: %.6f nlog=%.3f\n", totScore, -math.Log(totScore))
+		if short {
+			sp.out.Printf("%s %+v\n", prefix, es)
+		} else {
+			sp.out.Printf("%s %+v\n", prefix, es)
+		}
+	}
+
 	// Read solution file (if we have one)
 	if sp.solFile {
 		solFilename := sp.uaiFile + ".MAR"
@@ -181,18 +191,11 @@ func modelMarginals(sp *startupParams) error {
 			return errors.Wrapf(err, "Could not read solution file %s", solFilename)
 		}
 
-		totScore, maxScore, err := sol.AbsError(mod)
+		score, err := sol.Error(mod)
 		if err != nil {
 			return errors.Wrapf(err, "Error calculating init score on startup")
 		}
-		hellScore, err := sol.HellingerError(mod)
-		if err != nil {
-			return errors.Wrapf(err, "Error calc init hellinger on startup")
-		}
-
-		sp.out.Printf("Start TotAE: %.6f nlog=%.3f\n", totScore, -math.Log(totScore))
-		sp.out.Printf("Start MaxAE: %.6f nlog=%.3f\n", maxScore, -math.Log(maxScore))
-		sp.out.Printf("Start HellE: %.6f nlog=%.3f\n", hellScore, -math.Log(hellScore))
+		errorReport("START", score, false)
 	}
 
 	// Some of our parameters are based on variable count
@@ -292,19 +295,18 @@ func modelMarginals(sp *startupParams) error {
 		if now.After(nextStatus) || !keepWorking {
 			nextStatus = now.Add(untilStatus)
 
-			evalReport := "---"
-			if sp.solFile {
-				score, maxScore, err := sol.AbsError(mod)
-				if err != nil {
-					return errors.Wrapf(err, "Error calculating TAE")
-				}
-				evalReport = fmt.Sprintf("%8.6f nlog=%.3f (maxE %8.6f)", score, -math.Log(score), maxScore)
-			}
-
 			sp.out.Printf(
-				"  Iterations: %12d | Samples: %12d | Run time %12.2fsec | Eval %s\n",
-				it, sampleCount, time.Now().Sub(startTime).Seconds(), evalReport,
+				"  Iterations: %12d | Samples: %12d | Run time %12.2fsec\n",
+				it, sampleCount, time.Now().Sub(startTime).Seconds(),
 			)
+
+			if sp.solFile {
+				score, err := sol.Error(mod)
+				if err != nil {
+					return errors.Wrapf(err, "Error calculating score")
+				}
+				errorReport("", score, true)
+			}
 		}
 	}
 
@@ -318,17 +320,11 @@ func modelMarginals(sp *startupParams) error {
 
 	// Write score if we have a solution file
 	if sp.solFile {
-		totScore, maxScore, err := sol.AbsError(mod)
+		score, err := sol.Error(mod)
 		if err != nil {
-			return errors.Wrapf(err, "Error calculating AE!")
+			return errors.Wrapf(err, "Error calculating Final Score!")
 		}
-		hellScore, err := sol.HellingerError(mod)
-		if err != nil {
-			return errors.Wrapf(err, "Error calculating Hellinger Err!")
-		}
-		sp.out.Printf("Final TotAE: %.6f nlog=%.3f\n", totScore, -math.Log(totScore))
-		sp.out.Printf("Final MaxAE: %.6f nlog=%.3f\n", maxScore, -math.Log(maxScore))
-		sp.out.Printf("Final HellE: %.6f nlog=%.3f\n", hellScore, -math.Log(hellScore))
+		errorReport("FINAL", score, false)
 
 		// Update the state map for variables for the trace/verbose stuff below
 		for i, v := range mod.Vars {
