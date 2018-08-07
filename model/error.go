@@ -6,7 +6,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// TODO: unit test Jensen-Shannon
 // TODO: split out Hellinger error for vars (needed for GR)
 // TODO: Create GR diagnostic, accepting any of our metrics
 
