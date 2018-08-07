@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"strings"
 	"time"
@@ -173,14 +174,57 @@ func modelMarginals(sp *startupParams) error {
 	}
 
 	// Helper func for writing out an error suite of scoring
+	var errorBuffer strings.Builder
 	errorReport := func(prefix string, es *model.ErrorSuite, short bool) {
-		// TODO: better output for both long and short (and include nlog)
-		//       ex: sp.out.Printf("Start TotAE: %.6f nlog=%.3f\n", totScore, -math.Log(totScore))
 		if short {
-			sp.out.Printf("%s %+v\n", prefix, es)
-		} else {
-			sp.out.Printf("%s %+v\n", prefix, es)
+			errorBuffer.Reset()
+			patt := "%s=>%.6f(%7.3f),X%.6f(%7.3f)"
+			fmt.Fprintf(
+				&errorBuffer, patt, "MAE",
+				es.MeanMeanAbsError, -math.Log2(es.MeanMeanAbsError),
+				es.MaxMeanAbsError, -math.Log2(es.MaxMeanAbsError),
+			)
+			fmt.Fprintf(
+				&errorBuffer, patt, "XAE",
+				es.MeanMaxAbsError, -math.Log2(es.MeanMaxAbsError),
+				es.MaxMaxAbsError, -math.Log2(es.MaxMaxAbsError),
+			)
+			fmt.Fprintf(
+				&errorBuffer, patt, "HEL",
+				es.MeanHellinger, -math.Log2(es.MeanHellinger),
+				es.MaxHellinger, -math.Log2(es.MaxHellinger),
+			)
+			fmt.Fprintf(
+				&errorBuffer, patt, "JSD",
+				es.MeanJSDiverge, -math.Log2(es.MeanJSDiverge),
+				es.MaxJSDiverge, -math.Log2(es.MaxJSDiverge),
+			)
+			sp.out.Printf(errorBuffer.String())
+			return
 		}
+
+		sp.out.Printf("%s ... M:mean(neg log), X:max(neg log)\n", prefix)
+		patt := "%15s => M:%.6f(%7.3f) X:%.6f(%7.3f)\n"
+		sp.out.Printf(
+			patt, "MeanAbsError",
+			es.MeanMeanAbsError, -math.Log2(es.MeanMeanAbsError),
+			es.MaxMeanAbsError, -math.Log2(es.MaxMeanAbsError),
+		)
+		sp.out.Printf(
+			patt, "MaxAbsError",
+			es.MeanMaxAbsError, -math.Log2(es.MeanMaxAbsError),
+			es.MaxMaxAbsError, -math.Log2(es.MaxMaxAbsError),
+		)
+		sp.out.Printf(
+			patt, "Hellinger",
+			es.MeanHellinger, -math.Log2(es.MeanHellinger),
+			es.MaxHellinger, -math.Log2(es.MaxHellinger),
+		)
+		sp.out.Printf(
+			patt, "JS Diverge",
+			es.MeanJSDiverge, -math.Log2(es.MeanJSDiverge),
+			es.MaxJSDiverge, -math.Log2(es.MaxJSDiverge),
+		)
 	}
 
 	// Read solution file (if we have one)
