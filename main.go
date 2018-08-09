@@ -15,6 +15,8 @@ import "github.com/CraigKelly/grample/cmd"
 // TODO: checkpointing for chains (so we can freeze and continue) - which means
 //       model/sampler/chain all need to be included?
 
+// TODO: web frontend for monitor so we can track what's going on?
+
 func main() {
 	cmd.Execute()
 }
