@@ -40,6 +40,7 @@ type startupParams struct {
 	verb   *log.Logger
 	trace  *log.Logger
 	traceJ JSONLogger
+	mon    *monitor
 }
 
 // JSONLogger is a simple interface for JSON logging (matches json.Encoder) and
@@ -84,6 +85,8 @@ func (s *startupParams) Setup() error {
 		s.traceJ = &DiscardJSON{}
 	}
 
+	s.mon = &monitor{}
+
 	return nil
 }
 
@@ -120,6 +123,12 @@ func Execute() {
 			return err
 		}
 		sp.out.Printf("grample\n")
+
+		err = sp.mon.Start()
+		if err != nil {
+			return err
+		}
+		defer sp.mon.Stop()
 
 		// Extra checks on parameters
 		if sp.sampleRate > 1.0 {
@@ -176,6 +185,11 @@ func modelMarginals(sp *startupParams) error {
 	// Helper func for writing out an error suite of scoring
 	var errorBuffer strings.Builder
 	errorReport := func(prefix string, es *model.ErrorSuite, short bool) {
+		sp.mon.LastMeanHellinger.Set(es.MeanHellinger)
+		sp.mon.LastMaxHellinger.Set(es.MaxHellinger)
+		sp.mon.LastMeanJSD.Set(es.MeanJSDiverge)
+		sp.mon.LastMaxJSD.Set(es.MaxJSDiverge)
+
 		if short {
 			errorBuffer.Reset()
 			patt := "%s=>%.6f(%7.3f),X%.6f(%7.3f) | "
@@ -255,6 +269,10 @@ func modelMarginals(sp *startupParams) error {
 
 	// Report what's going on
 	sp.Report()
+	sp.mon.SampleRate.Set(sp.sampleRate)
+	sp.mon.BurnIn.Set(sp.burnIn)
+	sp.mon.MaxIters.Set(sp.maxIters)
+	sp.mon.MaxSeconds.Set(sp.maxSecs)
 
 	// Create our concurrent PRNG
 	gen, err := rand.NewGenerator(sp.randomSeed)
@@ -314,6 +332,7 @@ func modelMarginals(sp *startupParams) error {
 		// this iteration.
 		if gen.Float64() <= sp.sampleRate {
 			sampleCount++
+			sp.mon.TotalSamples.Add(1)
 
 			if sp.verbose {
 				sp.traceJ.Encode(oneSample) // Only trace samples when verbose
@@ -331,6 +350,7 @@ func modelMarginals(sp *startupParams) error {
 
 		// Don't forget to check iterations!
 		it++
+		sp.mon.Iterations.Add(1)
 		if sp.maxIters > 0 && it > sp.maxIters {
 			keepWorking = false
 		}
@@ -339,10 +359,9 @@ func modelMarginals(sp *startupParams) error {
 		if now.After(nextStatus) || !keepWorking {
 			nextStatus = now.Add(untilStatus)
 
-			sp.out.Printf(
-				"  Iterations: %12d | Samples: %12d | Run time %12.2fsec\n",
-				it, sampleCount, time.Now().Sub(startTime).Seconds(),
-			)
+			runTime := time.Now().Sub(startTime).Seconds()
+			sp.mon.RunTime.Set(runTime)
+			sp.out.Printf("  Its: %12d | Samps: %12d | RT %12.2fsec\n", it, sampleCount, runTime)
 
 			if sp.solFile {
 				score, err := sol.Error(mod)
