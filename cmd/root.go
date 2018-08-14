@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
+	"github.com/CraigKelly/grample/buffer"
 	"github.com/CraigKelly/grample/model"
 	"github.com/CraigKelly/grample/rand"
 	"github.com/CraigKelly/grample/sampler"
@@ -23,17 +24,18 @@ var startTime = time.Now()
 
 // Parameter
 type startupParams struct {
-	verbose     bool
-	uaiFile     string
-	useEvidence bool
-	solFile     bool
-	samplerName string
-	randomSeed  int64
-	burnIn      int64
-	maxIters    int64
-	maxSecs     int64
-	sampleRate  float64
-	traceFile   string
+	verbose        bool
+	uaiFile        string
+	useEvidence    bool
+	solFile        bool
+	samplerName    string
+	randomSeed     int64
+	burnIn         int64
+	convergeWindow int64
+	maxIters       int64
+	maxSecs        int64
+	sampleRate     float64
+	traceFile      string
 
 	// These are created/handled by Setup
 	out    *log.Logger
@@ -98,6 +100,7 @@ func (s *startupParams) Report() {
 	s.out.Printf("Solution:       %v\n", s.solFile)
 	s.out.Printf("Sampler:        %s\n", s.samplerName)
 	s.out.Printf("Burn In:        %12d\n", s.burnIn)
+	s.out.Printf("Converge Win:   %12d\n", s.convergeWindow)
 	s.out.Printf("Max Iters:      %12d\n", s.maxIters)
 	s.out.Printf("Max Secs:       %12d\n", s.maxSecs)
 	s.out.Printf("Accept Rate:    %12.4f\n", s.sampleRate)
@@ -153,6 +156,7 @@ func Execute() {
 	pf.BoolVarP(&sp.solFile, "solution", "o", false, "Use UAI MAR solution file to score (name inferred from model file)")
 	pf.StringVarP(&sp.samplerName, "sampler", "s", "", "Name of sampler to use")
 	pf.Int64VarP(&sp.burnIn, "burnin", "b", -1, "Burn-In iteration count - if < 0, will use 2000*n (n= # vars)")
+	pf.Int64VarP(&sp.convergeWindow, "cwin", "w", -1, "Sample window size for measuring convergence, if <= 0 will use burnin size")
 	pf.Int64VarP(&sp.maxIters, "maxiters", "i", 0, "Maximum iterations (not including burnin) 0 if < 0 will use 20000*n")
 	pf.Int64VarP(&sp.maxSecs, "maxsecs", "x", 300, "Maximum seconds to run (0 for no maximum)")
 	pf.StringVarP(&sp.traceFile, "trace", "t", "", "Optional trace file: all samples written here")
@@ -263,6 +267,9 @@ func modelMarginals(sp *startupParams) error {
 	if sp.burnIn < 0 {
 		sp.burnIn = int64(2000 * len(mod.Vars))
 	}
+	if sp.convergeWindow < 0 {
+		sp.convergeWindow = sp.burnIn
+	}
 	if sp.maxIters < 0 {
 		sp.maxIters = int64(20000 * len(mod.Vars))
 	}
@@ -271,6 +278,7 @@ func modelMarginals(sp *startupParams) error {
 	sp.Report()
 	sp.mon.SampleRate.Set(sp.sampleRate)
 	sp.mon.BurnIn.Set(sp.burnIn)
+	sp.mon.ConvergeWindow.Set(sp.convergeWindow)
 	sp.mon.MaxIters.Set(sp.maxIters)
 	sp.mon.MaxSeconds.Set(sp.maxSecs)
 
@@ -314,6 +322,13 @@ func modelMarginals(sp *startupParams) error {
 	untilStatus := time.Duration(5) * time.Second
 	nextStatus := startTime.Add(untilStatus / 2)
 
+	// Create our convergence window buffers (for the memory conscious, note
+	// that this means one buffer per variable per chain!)
+	convergeBufs := make([]*buffer.CircularInt, len(mod.Vars))
+	for i := range convergeBufs {
+		convergeBufs[i] = buffer.NewCircularInt(int(sp.convergeWindow))
+	}
+
 	it := int64(1)
 	sampleCount := int64(0)
 	keepWorking := true
@@ -338,8 +353,12 @@ func modelMarginals(sp *startupParams) error {
 				sp.traceJ.Encode(oneSample) // Only trace samples when verbose
 			}
 
+			// Get the current variable value that we just sampled, add a count
+			// to the marginal estimate, and store the value in our converge
+			// window buffer
 			currVarVal := oneSample[varIdx]
 			mod.Vars[varIdx].Marginal[currVarVal] += 1.0
+			convergeBufs[varIdx].Add(currVarVal)
 		}
 
 		// Time checking and status updates
@@ -363,6 +382,7 @@ func modelMarginals(sp *startupParams) error {
 			sp.mon.RunTime.Set(runTime)
 			sp.out.Printf("  Its: %12d | Samps: %12d | RT %12.2fsec\n", it, sampleCount, runTime)
 
+			// TODO: now that we have convergence buffers per var, we can also report converge scores
 			if sp.solFile {
 				score, err := sol.Error(mod)
 				if err != nil {

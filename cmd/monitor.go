@@ -14,13 +14,14 @@ type monitor struct {
 	stopped chan struct{}
 	server  *http.Server
 
-	SampleRate   *expvar.Float
-	BurnIn       *expvar.Int
-	MaxIters     *expvar.Int
-	MaxSeconds   *expvar.Int
-	RunTime      *expvar.Float
-	TotalSamples *expvar.Int
-	Iterations   *expvar.Int
+	SampleRate     *expvar.Float
+	BurnIn         *expvar.Int
+	ConvergeWindow *expvar.Int
+	MaxIters       *expvar.Int
+	MaxSeconds     *expvar.Int
+	RunTime        *expvar.Float
+	TotalSamples   *expvar.Int
+	Iterations     *expvar.Int
 
 	LastMeanHellinger *expvar.Float
 	LastMaxHellinger  *expvar.Float
@@ -42,6 +43,7 @@ func (m *monitor) Start() error {
 
 	m.SampleRate = expvar.NewFloat("Sample-Rate")
 	m.BurnIn = expvar.NewInt("Burn-In")
+	m.ConvergeWindow = expvar.NewInt("Convergence-Window")
 	m.MaxIters = expvar.NewInt("Max-Iterations")
 	m.MaxSeconds = expvar.NewInt("Max-Seconds")
 	m.RunTime = expvar.NewFloat("Run-Time")
