@@ -1,6 +1,7 @@
 package rand
 
 import (
+	"github.com/pkg/errors"
 	"github.com/seehuhn/mt19937"
 )
 
@@ -10,13 +11,24 @@ type Generator struct {
 	ch chan int64
 }
 
-// NewGenerator starts a new background PRNG based on the given seed
-func NewGenerator(seed int64) (*Generator, error) {
+// NewGeneratorSlice starts a new background PRNG based on the given seed
+// slice. If the slice has only one entry, then the MT generator is
+// initialized with Seed. Otherwise SeedFromSlice is used
+func NewGeneratorSlice(seed []uint64) (*Generator, error) {
+	if len(seed) < 1 {
+		return nil, errors.Errorf("Invalid generator seed array %v", seed)
+	}
+
 	numChan := make(chan int64, 1024)
 
+	r := mt19937.New()
+	if len(seed) == 1 {
+		r.Seed(int64(seed[0]))
+	} else {
+		r.SeedFromSlice(seed)
+	}
+
 	go func() {
-		r := mt19937.New()
-		r.Seed(seed)
 		for {
 			numChan <- r.Int63()
 		}
@@ -27,6 +39,11 @@ func NewGenerator(seed int64) (*Generator, error) {
 	}
 
 	return g, nil
+}
+
+// NewGenerator is a helper wrapper around NewGeneratorSlice
+func NewGenerator(seed int64) (*Generator, error) {
+	return NewGeneratorSlice([]uint64{uint64(seed)})
 }
 
 // Int63 provides the same interface as Go's math/rand, but with pre-generation.
