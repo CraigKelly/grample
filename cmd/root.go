@@ -8,12 +8,12 @@ import (
 	"math"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
-	"github.com/CraigKelly/grample/buffer"
 	"github.com/CraigKelly/grample/model"
 	"github.com/CraigKelly/grample/rand"
 	"github.com/CraigKelly/grample/sampler"
@@ -34,7 +34,6 @@ type startupParams struct {
 	convergeWindow int64
 	maxIters       int64
 	maxSecs        int64
-	sampleRate     float64
 	traceFile      string
 
 	// These are created/handled by Setup
@@ -103,7 +102,6 @@ func (s *startupParams) Report() {
 	s.out.Printf("Converge Win:   %12d\n", s.convergeWindow)
 	s.out.Printf("Max Iters:      %12d\n", s.maxIters)
 	s.out.Printf("Max Secs:       %12d\n", s.maxSecs)
-	s.out.Printf("Accept Rate:    %12.4f\n", s.sampleRate)
 	s.out.Printf("Rnd Seed:       %12d\n", s.randomSeed)
 }
 
@@ -133,11 +131,6 @@ func Execute() {
 		}
 		defer sp.mon.Stop()
 
-		// Extra checks on parameters
-		if sp.sampleRate > 1.0 {
-			return errors.Errorf("Invalid sample rate %v: must be in the range (0.0, 1.0)", sp.sampleRate)
-		}
-
 		return modelMarginals(sp)
 	}
 
@@ -160,7 +153,6 @@ func Execute() {
 	pf.Int64VarP(&sp.maxIters, "maxiters", "i", 0, "Maximum iterations (not including burnin) 0 if < 0 will use 20000*n")
 	pf.Int64VarP(&sp.maxSecs, "maxsecs", "x", 300, "Maximum seconds to run (0 for no maximum)")
 	pf.StringVarP(&sp.traceFile, "trace", "t", "", "Optional trace file: all samples written here")
-	pf.Float64VarP(&sp.sampleRate, "srate", "r", -1.0, "Sample acceptance rate (1.0 for all) - if < 0, will use 1/n")
 
 	cmd.MarkPersistentFlagRequired("model")
 	cmd.MarkPersistentFlagRequired("sampler")
@@ -261,9 +253,6 @@ func modelMarginals(sp *startupParams) error {
 	}
 
 	// Some of our parameters are based on variable count
-	if sp.sampleRate <= 0.0 {
-		sp.sampleRate = 1.0 / float64(len(mod.Vars))
-	}
 	if sp.burnIn < 0 {
 		sp.burnIn = int64(2000 * len(mod.Vars))
 	}
@@ -276,7 +265,6 @@ func modelMarginals(sp *startupParams) error {
 
 	// Report what's going on
 	sp.Report()
-	sp.mon.SampleRate.Set(sp.sampleRate)
 	sp.mon.BurnIn.Set(sp.burnIn)
 	sp.mon.ConvergeWindow.Set(sp.convergeWindow)
 	sp.mon.MaxIters.Set(sp.maxIters)
@@ -288,9 +276,11 @@ func modelMarginals(sp *startupParams) error {
 		return errors.Wrapf(err, "Could not create Generator from seed %d", sp.randomSeed)
 	}
 
-	// select sampler
+	// Copy the model and create a chain
+	// TODO: have multiple chains
+	modCopy := mod.Clone()
 	if strings.ToLower(sp.samplerName) == "gibbssimple" {
-		samp, err = sampler.NewGibbsSimple(gen, mod)
+		samp, err = sampler.NewGibbsSimple(gen, modCopy)
 		if err != nil {
 			return errors.Wrapf(err, "Could not create %s", sp.samplerName)
 		}
@@ -298,15 +288,10 @@ func modelMarginals(sp *startupParams) error {
 		return errors.Errorf("Unknown Sampler: %s", sp.samplerName)
 	}
 
-	// Sampling: burn in
-	oneSample := make([]int, len(mod.Vars))
-
-	sp.out.Printf("Performing burn-in (%d)\n", sp.burnIn)
-	for it := int64(1); it <= sp.burnIn; it++ {
-		_, err = samp.Sample(oneSample)
-		if err != nil {
-			return errors.Wrapf(err, "Error during burn in on it %d", it)
-		}
+	sp.out.Printf("Creating chain and performing burn-in (%d)\n", sp.burnIn)
+	mainChain, err := sampler.NewChain(modCopy, samp, int(sp.convergeWindow), sp.burnIn)
+	if err != nil {
+		return errors.Wrapf(err, "Could not create a chain")
 	}
 
 	// Trace file warning - it can get huge in verbose mode
@@ -322,44 +307,15 @@ func modelMarginals(sp *startupParams) error {
 	untilStatus := time.Duration(5) * time.Second
 	nextStatus := startTime.Add(untilStatus / 2)
 
-	// Create our convergence window buffers (for the memory conscious, note
-	// that this means one buffer per variable per chain!)
-	convergeBufs := make([]*buffer.CircularInt, len(mod.Vars))
-	for i := range convergeBufs {
-		convergeBufs[i] = buffer.NewCircularInt(int(sp.convergeWindow))
-	}
-
+	wg := sync.WaitGroup{}
 	it := int64(1)
 	sampleCount := int64(0)
+
+	// MAIN LOOP
 	keepWorking := true
 	for keepWorking {
-		varIdx, err := samp.Sample(oneSample)
-		if err != nil {
-			return errors.Wrapf(err, "Error during main iteration it %d", it)
-		}
-		if varIdx < 0 || mod.Vars[varIdx].FixedVal >= 0 {
-			return errors.New("Invalid sample")
-		}
-
-		// Only trace and update marginals if we accept the sample.
-		// Note that in the limit, every sample is from the joint distribution,
-		// but we only update the marginal counts for the variable selected on
-		// this iteration.
-		if gen.Float64() <= sp.sampleRate {
-			sampleCount++
-			sp.mon.TotalSamples.Add(1)
-
-			if sp.verbose {
-				sp.traceJ.Encode(oneSample) // Only trace samples when verbose
-			}
-
-			// Get the current variable value that we just sampled, add a count
-			// to the marginal estimate, and store the value in our converge
-			// window buffer
-			currVarVal := oneSample[varIdx]
-			mod.Vars[varIdx].Marginal[currVarVal] += 1.0
-			convergeBufs[varIdx].Add(currVarVal)
-		}
+		mainChain.AdvanceChain(&wg)
+		wg.Wait()
 
 		// Time checking and status updates
 		now := time.Now()
@@ -382,9 +338,8 @@ func modelMarginals(sp *startupParams) error {
 			sp.mon.RunTime.Set(runTime)
 			sp.out.Printf("  Its: %12d | Samps: %12d | RT %12.2fsec\n", it, sampleCount, runTime)
 
-			// TODO: now that we have convergence buffers per var, we can also report converge scores
 			if sp.solFile {
-				score, err := sol.Error(mod)
+				score, err := sol.Error(mainChain.Target)
 				if err != nil {
 					return errors.Wrapf(err, "Error calculating score")
 				}
@@ -394,7 +349,7 @@ func modelMarginals(sp *startupParams) error {
 	}
 
 	// COMPLETED! normalize our marginals
-	for _, v := range mod.Vars {
+	for _, v := range mainChain.Target.Vars {
 		v.NormMarginal()
 	}
 
@@ -403,14 +358,14 @@ func modelMarginals(sp *startupParams) error {
 
 	// Write score if we have a solution file
 	if sp.solFile {
-		score, err := sol.Error(mod)
+		score, err := sol.Error(mainChain.Target)
 		if err != nil {
 			return errors.Wrapf(err, "Error calculating Final Score!")
 		}
 		errorReport("FINAL", score, false)
 
 		// Update the state map for variables for the trace/verbose stuff below
-		for i, v := range mod.Vars {
+		for i, v := range mainChain.Target.Vars {
 			s := sol.Vars[i]
 			for c := 0; c < v.Card; c++ {
 				ky := fmt.Sprintf("MAR[%d]", c)
@@ -423,14 +378,14 @@ func modelMarginals(sp *startupParams) error {
 	// Output evidence vars first, then output vars we're estimating
 	sp.traceJ.SetIndent("", "")
 	sp.trace.Printf("// EVIDENCE")
-	for _, v := range mod.Vars {
+	for _, v := range mainChain.Target.Vars {
 		if v.FixedVal >= 0 {
 			sp.traceJ.Encode(v)
 			sp.verb.Printf("Variable[%d] %s (Card:%d, %+v) EVID=%d\n", v.ID, v.Name, v.Card, v.State, v.FixedVal)
 		}
 	}
 	sp.trace.Printf("// VARS (ESTIMATED)")
-	for _, v := range mod.Vars {
+	for _, v := range mainChain.Target.Vars {
 		if v.FixedVal < 0 {
 			sp.traceJ.Encode(v)
 			sp.verb.Printf("Variable[%d] %s (Card:%d, %+v) %+v\n", v.ID, v.Name, v.Card, v.State, v.Marginal)
