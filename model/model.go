@@ -28,6 +28,26 @@ type Model struct {
 	Funcs []*Function `json:"-"` // Function of variables (CPT) in the model
 }
 
+// Clone returns a copy of the current model. Note that marginal state will be copied as well.
+func (m *Model) Clone() *Model {
+	cp := &Model{
+		Type:  m.Type,
+		Name:  m.Name,
+		Vars:  make([]*Variable, len(m.Vars)),
+		Funcs: make([]*Function, len(m.Funcs)),
+	}
+
+	for i, v := range m.Vars {
+		cp.Vars[i] = v.Clone()
+	}
+
+	for i, f := range m.Funcs {
+		cp.Funcs[i] = f.Clone()
+	}
+
+	return cp
+}
+
 // NewModelFromFile initializes and creates a model from the specified source.
 func NewModelFromFile(r Reader, filename string, useEvidence bool) (*Model, error) {
 	data, err := ioutil.ReadFile(filename)

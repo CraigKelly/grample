@@ -49,6 +49,27 @@ func NewVariable(index int, card int) (*Variable, error) {
 	return v, nil
 }
 
+// Clone returns a deep copy of the variable. Marginal is normalize, and the
+// state dict is copied.
+func (v *Variable) Clone() *Variable {
+	cp := &Variable{
+		ID:       v.ID,
+		Name:     v.Name,
+		Card:     v.Card,
+		FixedVal: v.FixedVal,
+		Marginal: make([]float64, v.Card),
+		State:    make(map[string]float64),
+	}
+
+	cp.NormMarginal()
+
+	for ky, val := range v.State {
+		cp.State[ky] = val
+	}
+
+	return cp
+}
+
 // Check returns an error if any problem is found
 func (v *Variable) Check() error {
 	if v.Card != len(v.Marginal) {

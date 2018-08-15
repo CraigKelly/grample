@@ -83,6 +83,24 @@ func NewFunction(index int, vars []*Variable) (*Function, error) {
 	return f, nil
 }
 
+// Clone returns a deep copy of the Function
+func (f *Function) Clone() *Function {
+	cp := &Function{
+		Name:  f.Name,
+		Vars:  make([]*Variable, len(f.Vars)),
+		Table: make([]float64, len(f.Table)),
+		IsLog: f.IsLog,
+	}
+
+	for i, v := range f.Vars {
+		cp.Vars[i] = v.Clone()
+	}
+
+	copy(cp.Table, f.Table)
+
+	return cp
+}
+
 // Check returns an error if any problem is found
 func (f *Function) Check() error {
 	expTabSize := calcTabSize(f.Vars)
