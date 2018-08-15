@@ -61,11 +61,11 @@ func (v *Variable) Clone() *Variable {
 		State:    make(map[string]float64),
 	}
 
-	cp.NormMarginal()
-
 	for ky, val := range v.State {
 		cp.State[ky] = val
 	}
+
+	copy(cp.Marginal, v.Marginal)
 
 	return cp
 }

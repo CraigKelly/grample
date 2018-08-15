@@ -167,7 +167,6 @@ func Execute() {
 func modelMarginals(sp *startupParams) error {
 	var mod *model.Model
 	var sol *model.Solution
-	var samp sampler.FullSampler
 	var err error
 
 	// Read model from file
@@ -245,7 +244,7 @@ func modelMarginals(sp *startupParams) error {
 			return errors.Wrapf(err, "Could not read solution file %s", solFilename)
 		}
 
-		score, err := sol.Error(mod)
+		score, err := sol.Error(mod.Vars)
 		if err != nil {
 			return errors.Wrapf(err, "Error calculating init score on startup")
 		}
@@ -276,22 +275,28 @@ func modelMarginals(sp *startupParams) error {
 		return errors.Wrapf(err, "Could not create Generator from seed %d", sp.randomSeed)
 	}
 
-	// Copy the model and create a chain
-	// TODO: have multiple chains
-	modCopy := mod.Clone()
-	if strings.ToLower(sp.samplerName) == "gibbssimple" {
-		samp, err = sampler.NewGibbsSimple(gen, modCopy)
-		if err != nil {
-			return errors.Wrapf(err, "Could not create %s", sp.samplerName)
-		}
-	} else {
-		return errors.Errorf("Unknown Sampler: %s", sp.samplerName)
-	}
+	// Create chains and do burnin
+	sp.out.Printf("Creating chains and performing burn-in (%d)\n", sp.burnIn)
 
-	sp.out.Printf("Creating chain and performing burn-in (%d)\n", sp.burnIn)
-	mainChain, err := sampler.NewChain(modCopy, samp, int(sp.convergeWindow), sp.burnIn)
-	if err != nil {
-		return errors.Wrapf(err, "Could not create a chain")
+	chains := make([]*sampler.Chain, 2)
+	for idx := range chains {
+		modCopy := mod.Clone()
+
+		var samp sampler.FullSampler
+		if strings.ToLower(sp.samplerName) == "gibbssimple" {
+			samp, err = sampler.NewGibbsSimple(gen, modCopy)
+			if err != nil {
+				return errors.Wrapf(err, "Could not create %s", sp.samplerName)
+			}
+		} else {
+			return errors.Errorf("Unknown Sampler: %s", sp.samplerName)
+		}
+
+		ch, err := sampler.NewChain(modCopy, samp, int(sp.convergeWindow), sp.burnIn)
+		if err != nil {
+			return errors.Wrapf(err, "Could not create initial chain")
+		}
+		chains[idx] = ch
 	}
 
 	// Trace file warning - it can get huge in verbose mode
@@ -308,13 +313,13 @@ func modelMarginals(sp *startupParams) error {
 	nextStatus := startTime.Add(untilStatus / 2)
 
 	wg := sync.WaitGroup{}
-	it := int64(1)
-	sampleCount := int64(0)
 
 	// MAIN LOOP
 	keepWorking := true
 	for keepWorking {
-		mainChain.AdvanceChain(&wg)
+		for _, ch := range chains {
+			ch.AdvanceChain(&wg)
+		}
 		wg.Wait()
 
 		// Time checking and status updates
@@ -323,10 +328,10 @@ func modelMarginals(sp *startupParams) error {
 			keepWorking = false
 		}
 
-		// Don't forget to check iterations!
-		it++
-		sp.mon.Iterations.Add(1)
-		if sp.maxIters > 0 && it > sp.maxIters {
+		// Don't forget to check iterations for quit
+		sampleCount := chains[0].TotalSampleCount
+		sp.mon.Iterations.Set(sampleCount)
+		if sp.maxIters > 0 && sampleCount > sp.maxIters {
 			keepWorking = false
 		}
 
@@ -336,10 +341,14 @@ func modelMarginals(sp *startupParams) error {
 
 			runTime := time.Now().Sub(startTime).Seconds()
 			sp.mon.RunTime.Set(runTime)
-			sp.out.Printf("  Its: %12d | Samps: %12d | RT %12.2fsec\n", it, sampleCount, runTime)
+			sp.out.Printf("  Samps: %12d | RT %12.2fsec\n", sampleCount, runTime)
 
 			if sp.solFile {
-				score, err := sol.Error(mainChain.Target)
+				merged, err := sampler.MergeChains(chains)
+				if err != nil {
+					return errors.Wrapf(err, "Could not merge chains to calculate score")
+				}
+				score, err := sol.Error(merged)
 				if err != nil {
 					return errors.Wrapf(err, "Error calculating score")
 				}
@@ -349,7 +358,11 @@ func modelMarginals(sp *startupParams) error {
 	}
 
 	// COMPLETED! normalize our marginals
-	for _, v := range mainChain.Target.Vars {
+	finalVars, err := sampler.MergeChains(chains)
+	if err != nil {
+		return errors.Wrapf(err, "Error in final chain merge")
+	}
+	for _, v := range finalVars {
 		v.NormMarginal()
 	}
 
@@ -358,14 +371,14 @@ func modelMarginals(sp *startupParams) error {
 
 	// Write score if we have a solution file
 	if sp.solFile {
-		score, err := sol.Error(mainChain.Target)
+		score, err := sol.Error(finalVars)
 		if err != nil {
 			return errors.Wrapf(err, "Error calculating Final Score!")
 		}
 		errorReport("FINAL", score, false)
 
 		// Update the state map for variables for the trace/verbose stuff below
-		for i, v := range mainChain.Target.Vars {
+		for i, v := range finalVars {
 			s := sol.Vars[i]
 			for c := 0; c < v.Card; c++ {
 				ky := fmt.Sprintf("MAR[%d]", c)
@@ -378,14 +391,14 @@ func modelMarginals(sp *startupParams) error {
 	// Output evidence vars first, then output vars we're estimating
 	sp.traceJ.SetIndent("", "")
 	sp.trace.Printf("// EVIDENCE")
-	for _, v := range mainChain.Target.Vars {
+	for _, v := range finalVars {
 		if v.FixedVal >= 0 {
 			sp.traceJ.Encode(v)
 			sp.verb.Printf("Variable[%d] %s (Card:%d, %+v) EVID=%d\n", v.ID, v.Name, v.Card, v.State, v.FixedVal)
 		}
 	}
 	sp.trace.Printf("// VARS (ESTIMATED)")
-	for _, v := range mainChain.Target.Vars {
+	for _, v := range finalVars {
 		if v.FixedVal < 0 {
 			sp.traceJ.Encode(v)
 			sp.verb.Printf("Variable[%d] %s (Card:%d, %+v) %+v\n", v.ID, v.Name, v.Card, v.State, v.Marginal)

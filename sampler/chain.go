@@ -18,6 +18,38 @@ type Chain struct {
 	LastSample        []int
 }
 
+// MergeChains returns a single variable array from multiple chains suitable
+// for marginal dist calculations.
+func MergeChains(chains []*Chain) ([]*model.Variable, error) {
+	chLen := len(chains)
+	if chLen < 1 {
+		return nil, errors.Errorf("Can not merge 0 chains")
+	}
+	if chLen == 1 {
+		return chains[0].Target.Vars, nil
+	}
+
+	varLen := len(chains[0].Target.Vars)
+
+	vars := make([]*model.Variable, varLen)
+	for i, v := range chains[0].Target.Vars {
+		vars[i] = v.Clone()
+	}
+
+	for _, ch := range chains[1:] {
+		if len(ch.Target.Vars) != varLen {
+			return nil, errors.Errorf("Cannot merge chain with %d vars into %d vars", len(ch.Target.Vars), varLen)
+		}
+		for varIdx, src := range ch.Target.Vars {
+			for marIdx, val := range src.Marginal {
+				vars[varIdx].Marginal[marIdx] += val
+			}
+		}
+	}
+
+	return vars, nil
+}
+
 // NewChain returns a chain ready to go. It even performs burnin.
 func NewChain(mod *model.Model, samp FullSampler, cw int, burnIn int64) (*Chain, error) {
 	ch := &Chain{

@@ -135,7 +135,7 @@ func TestUAIMarSolFile(t *testing.T) {
 	// Handy to know: our simple one.uai model has a single factor of 0.25/0.75
 	// and models default the vars to have uniform marginals. So we know the
 	// starting Total AE should be 0.5 and Max AE should be 0.25
-	es, err := s.Error(m)
+	es, err := s.Error(m.Vars)
 	assert.NoError(err)
 	assert.InEpsilon(0.25, es.MeanMeanAbsError, 1e-8)
 	assert.InEpsilon(0.25, es.MeanMaxAbsError, 1e-8)

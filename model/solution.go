@@ -60,6 +60,6 @@ func (s *Solution) Check(m *Model) error {
 
 // Error is a helper method to return the entire error suite we offer for the
 // current solution against the given model
-func (s *Solution) Error(m *Model) (*ErrorSuite, error) {
-	return NewErrorSuite(s.Vars, m.Vars)
+func (s *Solution) Error(vars []*Variable) (*ErrorSuite, error) {
+	return NewErrorSuite(s.Vars, vars)
 }
