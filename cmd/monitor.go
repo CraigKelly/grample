@@ -14,7 +14,6 @@ type monitor struct {
 	stopped chan struct{}
 	server  *http.Server
 
-	SampleRate     *expvar.Float
 	BurnIn         *expvar.Int
 	ConvergeWindow *expvar.Int
 	MaxIters       *expvar.Int
@@ -41,7 +40,6 @@ func (m *monitor) Start() error {
 		Addr: ":8000", // TODO: allow override in call to start
 	}
 
-	m.SampleRate = expvar.NewFloat("Sample-Rate")
 	m.BurnIn = expvar.NewInt("Burn-In")
 	m.ConvergeWindow = expvar.NewInt("Convergence-Window")
 	m.MaxIters = expvar.NewInt("Max-Iterations")
