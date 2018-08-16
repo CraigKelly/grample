@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +33,7 @@ type startupParams struct {
 	randomSeed     int64
 	burnIn         int64
 	convergeWindow int64
+	baseCount      int64
 	maxIters       int64
 	maxSecs        int64
 	traceFile      string
@@ -100,6 +102,7 @@ func (s *startupParams) Report() {
 	s.out.Printf("Sampler:        %s\n", s.samplerName)
 	s.out.Printf("Burn In:        %12d\n", s.burnIn)
 	s.out.Printf("Converge Win:   %12d\n", s.convergeWindow)
+	s.out.Printf("Num Base Chain: %12d\n", s.baseCount)
 	s.out.Printf("Max Iters:      %12d\n", s.maxIters)
 	s.out.Printf("Max Secs:       %12d\n", s.maxSecs)
 	s.out.Printf("Rnd Seed:       %12d\n", s.randomSeed)
@@ -150,6 +153,7 @@ func Execute() {
 	pf.StringVarP(&sp.samplerName, "sampler", "s", "", "Name of sampler to use")
 	pf.Int64VarP(&sp.burnIn, "burnin", "b", -1, "Burn-In iteration count - if < 0, will use 2000*n (n= # vars)")
 	pf.Int64VarP(&sp.convergeWindow, "cwin", "w", -1, "Sample window size for measuring convergence, if <= 0 will use burnin size")
+	pf.Int64VarP(&sp.baseCount, "chains", "c", -1, "Number of base/starting chains, if <= 0 will use number of CPUs")
 	pf.Int64VarP(&sp.maxIters, "maxiters", "i", 0, "Maximum iterations (not including burnin) 0 if < 0 will use 20000*n")
 	pf.Int64VarP(&sp.maxSecs, "maxsecs", "x", 300, "Maximum seconds to run (0 for no maximum)")
 	pf.StringVarP(&sp.traceFile, "trace", "t", "", "Optional trace file: all samples written here")
@@ -255,11 +259,18 @@ func modelMarginals(sp *startupParams) error {
 	if sp.burnIn < 0 {
 		sp.burnIn = int64(2000 * len(mod.Vars))
 	}
-	if sp.convergeWindow < 0 {
+	if sp.convergeWindow <= 0 {
 		sp.convergeWindow = sp.burnIn
 	}
 	if sp.maxIters < 0 {
 		sp.maxIters = int64(20000 * len(mod.Vars))
+	}
+	if sp.baseCount <= 0 {
+		sp.baseCount = int64(runtime.NumCPU())
+		if sp.baseCount < 2 {
+			sp.out.Printf("Base chain count was %d, forcing to 2\n", sp.baseCount)
+			sp.baseCount = 2
+		}
 	}
 
 	// Report what's going on
@@ -278,8 +289,9 @@ func modelMarginals(sp *startupParams) error {
 	// Create chains and do burnin
 	sp.out.Printf("Creating chains and performing burn-in (%d)\n", sp.burnIn)
 
-	chains := make([]*sampler.Chain, 2)
+	chains := make([]*sampler.Chain, sp.baseCount)
 	for idx := range chains {
+		sp.out.Printf(" ... Chain %3d out of %3d\n", idx+1, sp.baseCount)
 		modCopy := mod.Clone()
 
 		var samp sampler.FullSampler
@@ -296,7 +308,10 @@ func modelMarginals(sp *startupParams) error {
 		if err != nil {
 			return errors.Wrapf(err, "Could not create initial chain")
 		}
+
 		chains[idx] = ch
+		sp.mon.BaseChains.Add(1)
+		sp.mon.TotalChains.Add(1)
 	}
 
 	// Trace file warning - it can get huge in verbose mode
@@ -329,7 +344,10 @@ func modelMarginals(sp *startupParams) error {
 		}
 
 		// Don't forget to check iterations for quit
-		sampleCount := chains[0].TotalSampleCount
+		sampleCount := int64(0)
+		for _, ch := range chains {
+			sampleCount += ch.TotalSampleCount
+		}
 		sp.mon.Iterations.Set(sampleCount)
 		if sp.maxIters > 0 && sampleCount > sp.maxIters {
 			keepWorking = false

@@ -97,9 +97,14 @@ func (c *Chain) AdvanceChain(wg *sync.WaitGroup) error {
 	go func() {
 		defer wg.Done()
 
+		// If we have N variables, we should take at least N samples before
+		// checking to see if we need to keep working. However, as a simple
+		// optmiization we currently run for 2N.
+		batchSize := len(c.Target.Vars) * 2
+
 		// While there is work to do, take {var count} samples
 		for keepRunning() {
-			for range c.Target.Vars {
+			for i := 0; i < batchSize; i++ {
 				err := c.oneSample(true)
 				if err != nil {
 					panic("Async sample generation failed - cannot continue")
