@@ -180,11 +180,41 @@ func (g *GibbsSimple) Sample(s []int) (int, error) {
 	}
 
 	// Convert sampleWeights from log space - and gather a total while we're at it
+	// To make sure everything remains stable, we scale our numbers up. Recalling
+	// that adding in log-space is equivalent to multiplication, we just add a constant
+	// to all weights if the minimum weight is too low. There is mainly for numerical
+	// stability, but it also helps with debugging things like our min weight check below
+	minWeight := sampleWeights[0]
+	for _, w := range sampleWeights[1:] {
+		if w < minWeight {
+			minWeight = w
+		}
+	}
+	if minWeight < -8.0 {
+		for i, w := range sampleWeights {
+			sampleWeights[i] = w - (minWeight - 1.5) // should all be positive now
+		}
+	}
+
 	totWeights := 0.0
 	for i, w := range sampleWeights {
 		v := math.Exp(w)
 		totWeights += v
 		sampleWeights[i] = v
+	}
+
+	// Remember that for Gibbs sampling to work, every option must be possible. As
+	// a result, we make sure that no weight results in a prob < minProb
+	for i, w := range sampleWeights {
+		if w/totWeights < 1e-6 {
+			delta := totWeights * 1e-6
+			if delta <= 1e-12 {
+				return -1, errors.Errorf("Logic error: w=%.12f, totw=%.12f, delta=%.12f",
+					sampleWeights[i], totWeights, delta)
+			}
+			totWeights += delta // Adj total as well!
+			sampleWeights[i] += delta
+		}
 	}
 
 	// Select value based on the factor weights for our current variable

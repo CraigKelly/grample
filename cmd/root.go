@@ -167,6 +167,57 @@ func Execute() {
 	}
 }
 
+// // Handy reporting of current error/distance. Yes, global errorBuffer that is used by
+// this function that we assume is never called concurrently.
+var errorBuffer strings.Builder
+
+func errorReport(sp *startupParams, prefix string, es *model.ErrorSuite, short bool) {
+	// Update monitor with latest error results
+	sp.mon.LastMeanHellinger.Set(es.MeanHellinger)
+	sp.mon.LastMaxHellinger.Set(es.MaxHellinger)
+	sp.mon.LastMeanJSD.Set(es.MeanJSDiverge)
+	sp.mon.LastMaxJSD.Set(es.MaxJSDiverge)
+
+	// Select
+	var patt string
+	var titles []string
+
+	if short {
+		patt = "%s=>%.6f(%7.3f),X%.6f(%7.3f) | "
+		titles = []string{"MAE", "XAE", "HEL", "JSD"}
+	} else {
+		sp.out.Printf("%s ... M:mean(neg log), X:max(neg log)\n", prefix)
+		patt = "%15s => M:%.6f(%7.3f) X:%.6f(%7.3f)\n"
+		titles = []string{"MeanAbsError", "MaxAbsError", "Hellinger", "JS Diverge"}
+	}
+
+	// Use an error buffer so that we get to choose when a \n is logged
+	errorBuffer.Reset()
+
+	fmt.Fprintf(
+		&errorBuffer, patt, titles[0],
+		es.MeanMeanAbsError, -math.Log2(es.MeanMeanAbsError),
+		es.MaxMeanAbsError, -math.Log2(es.MaxMeanAbsError),
+	)
+	fmt.Fprintf(
+		&errorBuffer, patt, titles[1],
+		es.MeanMaxAbsError, -math.Log2(es.MeanMaxAbsError),
+		es.MaxMaxAbsError, -math.Log2(es.MaxMaxAbsError),
+	)
+	fmt.Fprintf(
+		&errorBuffer, patt, titles[2],
+		es.MeanHellinger, -math.Log2(es.MeanHellinger),
+		es.MaxHellinger, -math.Log2(es.MaxHellinger),
+	)
+	fmt.Fprintf(
+		&errorBuffer, patt, titles[3],
+		es.MeanJSDiverge, -math.Log2(es.MeanJSDiverge),
+		es.MaxJSDiverge, -math.Log2(es.MaxJSDiverge),
+	)
+
+	sp.out.Printf(errorBuffer.String())
+}
+
 // Our current default action (and the only one we support)
 func modelMarginals(sp *startupParams) error {
 	var mod *model.Model
@@ -181,65 +232,6 @@ func modelMarginals(sp *startupParams) error {
 		return err
 	}
 
-	// Helper func for writing out an error suite of scoring
-	var errorBuffer strings.Builder
-	errorReport := func(prefix string, es *model.ErrorSuite, short bool) {
-		sp.mon.LastMeanHellinger.Set(es.MeanHellinger)
-		sp.mon.LastMaxHellinger.Set(es.MaxHellinger)
-		sp.mon.LastMeanJSD.Set(es.MeanJSDiverge)
-		sp.mon.LastMaxJSD.Set(es.MaxJSDiverge)
-
-		if short {
-			errorBuffer.Reset()
-			patt := "%s=>%.6f(%7.3f),X%.6f(%7.3f) | "
-			fmt.Fprintf(
-				&errorBuffer, patt, "MAE",
-				es.MeanMeanAbsError, -math.Log2(es.MeanMeanAbsError),
-				es.MaxMeanAbsError, -math.Log2(es.MaxMeanAbsError),
-			)
-			fmt.Fprintf(
-				&errorBuffer, patt, "XAE",
-				es.MeanMaxAbsError, -math.Log2(es.MeanMaxAbsError),
-				es.MaxMaxAbsError, -math.Log2(es.MaxMaxAbsError),
-			)
-			fmt.Fprintf(
-				&errorBuffer, patt, "HEL",
-				es.MeanHellinger, -math.Log2(es.MeanHellinger),
-				es.MaxHellinger, -math.Log2(es.MaxHellinger),
-			)
-			fmt.Fprintf(
-				&errorBuffer, patt, "JSD",
-				es.MeanJSDiverge, -math.Log2(es.MeanJSDiverge),
-				es.MaxJSDiverge, -math.Log2(es.MaxJSDiverge),
-			)
-			sp.out.Printf(errorBuffer.String())
-			return
-		}
-
-		sp.out.Printf("%s ... M:mean(neg log), X:max(neg log)\n", prefix)
-		patt := "%15s => M:%.6f(%7.3f) X:%.6f(%7.3f)\n"
-		sp.out.Printf(
-			patt, "MeanAbsError",
-			es.MeanMeanAbsError, -math.Log2(es.MeanMeanAbsError),
-			es.MaxMeanAbsError, -math.Log2(es.MaxMeanAbsError),
-		)
-		sp.out.Printf(
-			patt, "MaxAbsError",
-			es.MeanMaxAbsError, -math.Log2(es.MeanMaxAbsError),
-			es.MaxMaxAbsError, -math.Log2(es.MaxMaxAbsError),
-		)
-		sp.out.Printf(
-			patt, "Hellinger",
-			es.MeanHellinger, -math.Log2(es.MeanHellinger),
-			es.MaxHellinger, -math.Log2(es.MaxHellinger),
-		)
-		sp.out.Printf(
-			patt, "JS Diverge",
-			es.MeanJSDiverge, -math.Log2(es.MeanJSDiverge),
-			es.MaxJSDiverge, -math.Log2(es.MaxJSDiverge),
-		)
-	}
-
 	// Read solution file (if we have one)
 	if sp.solFile {
 		solFilename := sp.uaiFile + ".MAR"
@@ -252,7 +244,7 @@ func modelMarginals(sp *startupParams) error {
 		if err != nil {
 			return errors.Wrapf(err, "Error calculating init score on startup")
 		}
-		errorReport("START", score, false)
+		errorReport(sp, "START", score, false)
 	}
 
 	// Some of our parameters are based on variable count
@@ -370,7 +362,7 @@ func modelMarginals(sp *startupParams) error {
 				if err != nil {
 					return errors.Wrapf(err, "Error calculating score")
 				}
-				errorReport("", score, true)
+				errorReport(sp, "", score, true)
 			}
 		}
 	}
@@ -393,7 +385,7 @@ func modelMarginals(sp *startupParams) error {
 		if err != nil {
 			return errors.Wrapf(err, "Error calculating Final Score!")
 		}
-		errorReport("FINAL", score, false)
+		errorReport(sp, "FINAL", score, false)
 
 		// Update the state map for variables for the trace/verbose stuff below
 		for i, v := range finalVars {
