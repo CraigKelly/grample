@@ -42,6 +42,12 @@ func (m *monitor) Start() error {
 		Addr: ":8000", // TODO: allow override in call to start
 	}
 
+	// Help the user and redirect to the only thing currently available:
+	// the handler from the expvar package
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/debug/vars", http.StatusTemporaryRedirect)
+	})
+
 	m.BurnIn = expvar.NewInt("Burn-In")
 	m.ConvergeWindow = expvar.NewInt("Convergence-Window")
 	m.BaseChains = expvar.NewInt("Base-Chain-Count")
