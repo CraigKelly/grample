@@ -51,6 +51,11 @@ func NewGibbsCollapsed(gen *rand.Generator, m *model.Model) (*GibbsCollapsed, er
 	return s, nil
 }
 
+// NeighborVarMax is the max size of the neighborhood allowed for a
+// variable that we will collapse. Note that it includes the variable itself,
+// so the total size of input space is 2^(M-1) where M is NeighborVarMax.
+const NeighborVarMax = 22
+
 // Collapse integrates out the variable given by index. If the index is < 0, a
 // variable is randomly chosen. The collapsed variable is returned for
 // inspection.
@@ -70,7 +75,7 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 			}
 
 			nCount := len(g.varNeighbors[varIdx])
-			if nCount <= 22 {
+			if nCount <= NeighborVarMax {
 				break
 			} else {
 				varIdx = -1
