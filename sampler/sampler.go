@@ -19,9 +19,10 @@ type FullSampler interface {
 
 // A VarSampler selects from an array of variables with some probability.
 // Currently used yo select the next variable to sample in a chain in our Gibbs
-// sampler.
+// sampler. The selection routine should exclude variables with a Fixed Value
+// and optionally exclude Variable with Collapsed==true.
 type VarSampler interface {
-	VarSample(vs []*model.Variable) (int, error)
+	VarSample(vs []*model.Variable, excludeCollapsed bool) (int, error)
 }
 
 // UniformSampler provides uniform sampling for our interfaces
@@ -67,8 +68,10 @@ func (s *UniformSampler) UniSample(card int) (int, error) {
 	return int(s.gen.Int31n(int32(card))), nil
 }
 
-// VarSample implements VarSample interface
-func (s *UniformSampler) VarSample(vs []*model.Variable) (int, error) {
+// VarSample implements VarSample interface. If excludeCollapsed is true, no
+// collapsed variable will be selected. Variable with a Fixed Val will never be
+// selected.
+func (s *UniformSampler) VarSample(vs []*model.Variable, excludeCollapsed bool) (int, error) {
 	vsLen := len(vs)
 	if vsLen < 1 {
 		return 0, errors.New("Can not sample from an empty variable list")
@@ -80,16 +83,21 @@ func (s *UniformSampler) VarSample(vs []*model.Variable) (int, error) {
 
 	targetCount := 0
 	for i, v := range vs {
-		if v.FixedVal < 0 {
-			targetIndexes[targetCount] = i
-			targetCount++
+		if excludeCollapsed && v.Collapsed {
+			continue
 		}
+		if v.FixedVal >= 0 {
+			continue
+		}
+
+		targetIndexes[targetCount] = i
+		targetCount++
 	}
 
 	// Corner cases
 	if targetCount < 1 {
 		// No possible selection
-		return 0, errors.New("All variable are fixed - nothing to select")
+		return 0, errors.New("No Variables to select")
 	} else if targetCount == 1 {
 		// Only one variable to select
 		return targetIndexes[0], nil

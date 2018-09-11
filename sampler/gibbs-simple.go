@@ -117,10 +117,16 @@ func (g *GibbsSimple) Sample(s []int) (int, error) {
 	}
 
 	// Select next variable to sample
-	varIdx, err := g.varSelector.VarSample(g.pgm.Vars)
+	varIdx, err := g.varSelector.VarSample(g.pgm.Vars, false)
 	if err != nil {
 		return -1, errors.Wrapf(err, "Could not sample from vars in model %s", g.pgm.Name)
 	}
+
+	return g.SampleVar(varIdx, s)
+}
+
+// SampleVar samples from the pre-selected varIdx variable.
+func (g *GibbsSimple) SampleVar(varIdx int, s []int) (int, error) {
 	sampleVar := g.pgm.Vars[varIdx]
 	sampleVar.State["Selections"] += 1.0
 

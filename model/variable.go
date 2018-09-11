@@ -8,12 +8,13 @@ import (
 
 // Variable represents a single node in a PGM, a random variable, or a marginal distribution.
 type Variable struct {
-	ID       int                // A numeric ID for tracking a variable
-	Name     string             // Variable name (just a zero-based index in UAI formats)
-	Card     int                // Cardinality - values are assume to be 0 to Card-1
-	FixedVal int                // Current fixed value (fixed by evidence): -1 is no evidence, else if 0 to Card-1
-	Marginal []float64          // Current best estimate for marginal distribution: len should equal Card
-	State    map[string]float64 // State/stats a sampler can track - mainly for JSON tracking
+	ID        int                // A numeric ID for tracking a variable
+	Name      string             // Variable name (just a zero-based index in UAI formats)
+	Card      int                // Cardinality - values are assume to be 0 to Card-1
+	FixedVal  int                // Current fixed value (fixed by evidence): -1 is no evidence, else if 0 to Card-1
+	Marginal  []float64          // Current best estimate for marginal distribution: len should equal Card
+	State     map[string]float64 // State/stats a sampler can track - mainly for JSON tracking
+	Collapsed bool               // For Collapsed == True, you should just sample from Marginal (default is False)
 }
 
 // NewVariable is our standard way to create a variable from an index and a
@@ -53,12 +54,13 @@ func NewVariable(index int, card int) (*Variable, error) {
 // state dict is copied.
 func (v *Variable) Clone() *Variable {
 	cp := &Variable{
-		ID:       v.ID,
-		Name:     v.Name,
-		Card:     v.Card,
-		FixedVal: v.FixedVal,
-		Marginal: make([]float64, v.Card),
-		State:    make(map[string]float64),
+		ID:        v.ID,
+		Name:      v.Name,
+		Card:      v.Card,
+		FixedVal:  v.FixedVal,
+		Marginal:  make([]float64, v.Card),
+		State:     make(map[string]float64),
+		Collapsed: v.Collapsed,
 	}
 
 	for ky, val := range v.State {

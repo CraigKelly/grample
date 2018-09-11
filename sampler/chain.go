@@ -29,11 +29,31 @@ func MergeChains(chains []*Chain) ([]*model.Variable, error) {
 		return chains[0].Target.Vars, nil
 	}
 
+	// If variable is collapsed in any chain, use that single var's Marginal as
+	// the merged estimate. If there is NOT a collapsed variable, then we start
+	// with the variable in the first chain
+	collapsedVars := make(map[int]bool)
 	varLen := len(chains[0].Target.Vars)
-
 	vars := make([]*model.Variable, varLen)
-	for i, v := range chains[0].Target.Vars {
-		vars[i] = v.Clone()
+
+	var found *model.Variable
+	for varIdx := 0; varIdx < varLen; varIdx++ {
+		found = nil
+		for _, ch := range chains {
+			v := ch.Target.Vars[varIdx]
+			if v.Collapsed {
+				found = v
+				break
+			}
+		}
+
+		if found != nil {
+			collapsedVars[varIdx] = true
+			vars[varIdx] = found.Clone()
+		} else {
+			collapsedVars[varIdx] = false
+			vars[varIdx] = chains[0].Target.Vars[varIdx].Clone()
+		}
 	}
 
 	for _, ch := range chains[1:] {
@@ -41,12 +61,16 @@ func MergeChains(chains []*Chain) ([]*model.Variable, error) {
 			return nil, errors.Errorf("Cannot merge chain with %d vars into %d vars", len(ch.Target.Vars), varLen)
 		}
 		for varIdx, src := range ch.Target.Vars {
+			if isCollapsed, inMap := collapsedVars[varIdx]; inMap && isCollapsed {
+				continue // No summation for already collapsed vars
+			}
 			for marIdx, val := range src.Marginal {
 				vars[varIdx].Marginal[marIdx] += val
 			}
 		}
 	}
 
+	// All done - ready to send back marged results
 	return vars, nil
 }
 
@@ -76,7 +100,8 @@ func NewChain(mod *model.Model, samp FullSampler, cw int, burnIn int64) (*Chain,
 }
 
 // AdvanceChain asynchonously generates samples until all variables have been
-// sampled at least ConvergeWindow times.
+// sampled at least ConvergeWindow times. Variables that are Fixed or Collapsed
+// are not checked for ConvergeWindow times
 func (c *Chain) AdvanceChain(wg *sync.WaitGroup) error {
 	cwThresh := make([]int64, len(c.ChainHistory))
 
@@ -86,7 +111,8 @@ func (c *Chain) AdvanceChain(wg *sync.WaitGroup) error {
 
 	keepRunning := func() bool {
 		for i, hist := range c.ChainHistory {
-			if c.Target.Vars[i].FixedVal < 0 && hist.TotalSeen < cwThresh[i] {
+			v := c.Target.Vars[i]
+			if !v.Collapsed && v.FixedVal < 0 && hist.TotalSeen < cwThresh[i] {
 				return true
 			}
 		}

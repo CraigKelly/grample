@@ -50,11 +50,14 @@ func TestUniformSampler(t *testing.T) {
 	assert.Equal(0, i)
 
 	vars := []*model.Variable{}
-	i, e = uni.VarSample(vars)
+	i, e = uni.VarSample(vars, false)
 	assert.Error(e)
 
+	v1.Collapsed = true
 	vars = []*model.Variable{v1}
-	i, e = uni.VarSample(vars)
+	i, e = uni.VarSample(vars, true)
+	assert.Error(e)
+	i, e = uni.VarSample(vars, false)
 	assert.NoError(e)
 	assert.Equal(0, i)
 
@@ -64,7 +67,7 @@ func TestUniformSampler(t *testing.T) {
 	vars = []*model.Variable{v1, v2}
 
 	for headCount < 1 || tailCount < 1 {
-		i, e := uni.VarSample(vars)
+		i, e := uni.VarSample(vars, false)
 		assert.NoError(e)
 		assert.True(i >= 0 && i <= 1)
 		if i == 0 {
@@ -100,12 +103,23 @@ func TestUniformSamplerFixed(t *testing.T) {
 
 	// Fix v1, so selection must be v2
 	v1.FixedVal = 0
-	i, e = uni.VarSample(vars)
+	i, e = uni.VarSample(vars, false)
 	assert.NoError(e)
 	assert.Equal(1, i)
 
 	// Fix v2, so there are no choices - that's an error
 	v2.FixedVal = 1
-	i, e = uni.VarSample(vars)
+	i, e = uni.VarSample(vars, false)
+	assert.Error(e)
+
+	// Now check with collapsed
+	v1.FixedVal = -1
+	v2.FixedVal = -1
+	v1.Collapsed = true
+	i, e = uni.VarSample(vars, true)
+	assert.NoError(e)
+	assert.Equal(1, i)
+	v2.Collapsed = true
+	i, e = uni.VarSample(vars, true)
 	assert.Error(e)
 }

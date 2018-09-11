@@ -8,10 +8,10 @@ import (
 )
 
 func testVars() (v0, v1, v2, v3 *Variable) {
-	v0 = &Variable{0, "V0", 0, -1, []float64{}, nil}
-	v1 = &Variable{1, "V1", 1, -1, []float64{1.0}, nil}
-	v2 = &Variable{2, "V2", 2, -1, []float64{0.25, 0.75}, nil}
-	v3 = &Variable{3, "V2", 3, -1, []float64{0.25, 0.70, 0.05}, nil}
+	v0 = &Variable{0, "V0", 0, -1, []float64{}, nil, false}
+	v1 = &Variable{1, "V1", 1, -1, []float64{1.0}, nil, false}
+	v2 = &Variable{2, "V2", 2, -1, []float64{0.25, 0.75}, nil, false}
+	v3 = &Variable{3, "V2", 3, -1, []float64{0.25, 0.70, 0.05}, nil, false}
 	return
 }
 
@@ -154,4 +154,36 @@ func TestFuncTestEval(t *testing.T) {
 	}
 
 	assert.InEpsilon(totProduct, math.Exp(logSum), EPS)
+}
+
+// test cloning
+func TestFuncClone(t *testing.T) {
+	assert := assert.New(t)
+
+	// handy short vars for below
+	_, _, v2, v3 := testVars()
+	v2 = v2.Clone()
+	v3 = v3.Clone()
+
+	// quick sanity check
+	assert.NoError(v2.Check())
+	assert.NoError(v3.Check())
+
+	f1 := &Function{
+		"TestTable",
+		[]*Variable{v2, v3},
+		[]float64{
+			0.01, // 0 0
+			1.02, // 0 1
+			2.03, // 0 2
+			3.04, // 1 0
+			4.05, // 1 1
+			5.06, // 1 2
+		},
+		false,
+	}
+
+	f2 := f1.Clone()
+	assert.True(f1 != f2) // point to different objects
+	assert.Equal(f1, f2)  // look exactly the same
 }

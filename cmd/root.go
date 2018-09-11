@@ -150,7 +150,7 @@ func Execute() {
 	pf.StringVarP(&sp.uaiFile, "model", "m", "", "UAI model file to read")
 	pf.BoolVarP(&sp.useEvidence, "evidence", "d", false, "Apply evidence from evidence file (name inferred from model file")
 	pf.BoolVarP(&sp.solFile, "solution", "o", false, "Use UAI MAR solution file to score (name inferred from model file)")
-	pf.StringVarP(&sp.samplerName, "sampler", "s", "", "Name of sampler to use")
+	pf.StringVarP(&sp.samplerName, "sampler", "s", "", "Name of sampler to use (simple, collapsed)")
 	pf.Int64VarP(&sp.burnIn, "burnin", "b", -1, "Burn-In iteration count - if < 0, will use 2000*n (n= # vars)")
 	pf.Int64VarP(&sp.convergeWindow, "cwin", "w", -1, "Sample window size for measuring convergence, if <= 0 will use burnin size")
 	pf.Int64VarP(&sp.baseCount, "chains", "c", -1, "Number of base/starting chains, if <= 0 will use number of CPUs")
@@ -231,6 +231,7 @@ func modelMarginals(sp *startupParams) error {
 	if err != nil {
 		return err
 	}
+	sp.out.Printf("Model has %d vars and %d functions\n", len(mod.Vars), len(mod.Funcs))
 
 	// Read solution file (if we have one)
 	if sp.solFile {
@@ -287,11 +288,23 @@ func modelMarginals(sp *startupParams) error {
 		modCopy := mod.Clone()
 
 		var samp sampler.FullSampler
-		if strings.ToLower(sp.samplerName) == "gibbssimple" {
+		if strings.ToLower(sp.samplerName) == "simple" {
 			samp, err = sampler.NewGibbsSimple(gen, modCopy)
 			if err != nil {
 				return errors.Wrapf(err, "Could not create %s", sp.samplerName)
 			}
+		} else if strings.ToLower(sp.samplerName) == "collapsed" {
+			coll, err := sampler.NewGibbsCollapsed(gen, modCopy)
+			if err != nil {
+				return errors.Wrapf(err, "Could not create %s", sp.samplerName)
+			}
+			colVar, err := coll.Collapse(-1)
+			if err != nil {
+				return errors.Wrapf(err, "Could not collapse random var on startup")
+			}
+			sp.out.Printf("        - Collaped variable %v:%v\n", colVar.ID, colVar.Name)
+			sp.verb.Printf("MARGINAL: %+v\n", colVar.Marginal)
+			samp = coll
 		} else {
 			return errors.Errorf("Unknown Sampler: %s", sp.samplerName)
 		}
