@@ -96,10 +96,6 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 		return nil, errors.Errorf("Can not collapsed Fixed Val variable %v:%v", v.ID, v.Name)
 	}
 
-	// TODO: alert on intractable variable (too many source variables in
-	//       factors to collapse. (This should factor in with our random
-	//       selection above). We are going to initially limit the Markov
-	//       blanket to 21 variables (so space is roughly 2^21)
 	// TODO: actually collapse variable
 	v.Collapsed = true
 
