@@ -97,6 +97,13 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 	}
 
 	// TODO: actually collapse variable
+	// - Make sure functions in log space
+	// - Make sure we still iterate over the values for FixedVal or Collapsed variables
+	// - Get a var-iter over the neighborhood and for each configuration"
+	// - call all affected functions (will need to map from neighborhood to each function)
+	// - add (which is mult) for the functions - when done, convert to "normal" space and add to our marginal
+	// - then we can marginalize
+
 	v.Collapsed = true
 
 	return v, nil
