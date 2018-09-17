@@ -155,7 +155,10 @@ func (c *Chain) oneSample(updateVars bool) error {
 	if updateVars {
 		value := c.LastSample[varIdx]
 
-		c.Target.Vars[varIdx].Marginal[value] += 1.0
+		v := c.Target.Vars[varIdx]
+		if !v.Collapsed {
+			c.Target.Vars[varIdx].Marginal[value] += 1.0
+		}
 		c.ChainHistory[varIdx].Add(value)
 
 		c.TotalSampleCount++

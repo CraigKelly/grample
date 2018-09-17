@@ -220,26 +220,43 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 
 // Sample returns a single sample - implements FullSampler
 func (g *GibbsCollapsed) Sample(s []int) (int, error) {
-	pgm := g.baseSampler.pgm
+	base := g.baseSampler
+	pgm := base.pgm
 
 	if len(s) != len(pgm.Vars) {
 		return -1, errors.Errorf("Samples size %d is wrong", len(s))
 	}
 
 	// Note excludeCollapsed=True
-	varIdx, err := g.baseSampler.varSelector.VarSample(pgm.Vars, true)
+	varIdx, err := base.varSelector.VarSample(pgm.Vars, false)
 	if err != nil {
 		return -1, err
 	}
 
 	v := pgm.Vars[varIdx]
-	if v.Collapsed {
-		return -1, errors.Errorf(
-			"Variable sampler selected collapsed variable %v:%v as index %v",
-			v.ID, v.Name, varIdx,
-		)
+	if !v.Collapsed {
+		// Not collapsed: just use regular sampling
+		return base.SampleVar(varIdx, s)
 	}
 
-	// Now we can just use the simple gibbs sampler
-	return g.baseSampler.SampleVar(varIdx, s)
+	// We have a collapsed variable, so we need to from it's marginal (which we
+	// have already arranged to sum to 1.0)
+	r := base.gen.Float64()
+	nextVal := -1
+	for i, w := range v.Marginal {
+		if r <= w {
+			nextVal = i
+			break
+		}
+		r -= w
+	}
+
+	if nextVal < 0 {
+		return -1, errors.Errorf("Failed to sample from collapsed var %v (%+v)", v.Name, v.Marginal)
+	}
+
+	v.State["Selections"] += 1.0
+	base.last[varIdx] = nextVal
+	copy(s, base.last)
+	return varIdx, nil
 }
