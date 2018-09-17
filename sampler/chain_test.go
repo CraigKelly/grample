@@ -1,7 +1,6 @@
 package sampler
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/CraigKelly/grample/model"
@@ -56,8 +55,6 @@ func TestMergeChains(t *testing.T) {
 	v1.Collapsed = true
 	ch2, err := NewChain(mod.Clone(), nil, 0, 0)
 	assert.NoError(err)
-	fmt.Printf("%+v\n", mod.Vars[0])
-	fmt.Printf("%+v\n", ch2.Target.Vars[0])
 
 	vars, err = MergeChains(Chains{ch1, ch2})
 	assert.NoError(err)

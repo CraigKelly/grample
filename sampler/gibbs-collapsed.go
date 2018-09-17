@@ -1,6 +1,8 @@
 package sampler
 
 import (
+	"math"
+
 	"github.com/CraigKelly/grample/model"
 	"github.com/CraigKelly/grample/rand"
 	"github.com/pkg/errors"
@@ -86,27 +88,132 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 	if varIdx < 0 {
 		return nil, errors.Errorf("Failed to randomly select a variable to collapse")
 	}
-
 	if varIdx >= len(pgm.Vars) {
 		return nil, errors.Errorf("Invalid variable index: max is %d", len(pgm.Vars)-1)
 	}
 
-	v := g.baseSampler.pgm.Vars[varIdx]
-	if v.FixedVal >= 0 {
-		return nil, errors.Errorf("Can not collapsed Fixed Val variable %v:%v", v.ID, v.Name)
+	// Special case: collapsing a variable of cardinality 1 is easy
+	if pgm.Vars[varIdx].Card == 1 {
+		err := pgm.Vars[varIdx].NormMarginal()
+		if err != nil {
+			return nil, err
+		}
+		pgm.Vars[varIdx].Collapsed = true
+		return pgm.Vars[varIdx], nil
 	}
 
-	// TODO: actually collapse variable
-	// - Make sure functions in log space
-	// - Make sure we still iterate over the values for FixedVal or Collapsed variables
-	// - Get a var-iter over the neighborhood and for each configuration"
-	// - call all affected functions (will need to map from neighborhood to each function)
-	// - add (which is mult) for the functions - when done, convert to "normal" space and add to our marginal
-	// - then we can marginalize
+	// Get our target variable - note that we clone the variable and zero the
+	// marginal for summing up below
+	collVar := pgm.Vars[varIdx].Clone()
+	if collVar.FixedVal >= 0 {
+		return nil, errors.Errorf("Can not collapsed Fixed Val variable %v:%v", collVar.ID, collVar.Name)
+	}
+	if collVar.Collapsed {
+		return nil, errors.Errorf("Already collapsed variable %v:%v", collVar.ID, collVar.Name)
+	}
+	for i := 0; i < collVar.Card; i++ {
+		collVar.Marginal[i] = 1e-6 // We start small instead of just a zero value
+	}
 
-	v.Collapsed = true
+	// IMPORTANT: remember in our blanket array, the variable index is NO
+	// LONGER EQUAL to v.ID.  That's why we need an xref: we can get to an
+	// index in blanket (and varState defined below) from a variable ID via
+	// blanketXref.
+	blanket := make([]*model.Variable, 0, len(pgm.Vars))
+	blanketXref := make(map[int]int)
+	for vi, inBlanket := range g.varNeighbors[varIdx] {
+		if inBlanket {
+			v := pgm.Vars[vi]
+			blanket = append(blanket, pgm.Vars[vi])
+			blanketXref[v.ID] = len(blanket) - 1
+		}
+	}
 
-	return v, nil
+	// Check our functions to make sure everything is OK
+	funcs := g.baseSampler.varFuncs[varIdx]
+	for _, f := range funcs {
+		if !f.IsLog {
+			return nil, errors.Errorf("Function %v is not set up for Log Space", f.Name)
+		}
+	}
+
+	// We need a buffer to call each function AND a buffer to iterate function values
+	callValBuffer := base.varPool.Get().([]int)
+	defer base.varPool.Put(callValBuffer)
+
+	varState := base.varPool.Get().([]int)
+	defer base.varPool.Put(varState)
+
+	// We also need a buffer for function results
+	funcResultsBuffer := base.valuePool.Get().([]float64)
+	defer base.valuePool.Put(funcResultsBuffer)
+	funcResults := funcResultsBuffer[:collVar.Card]
+
+	// Iterate over all configurations in the blanket/neighborhood
+	varIter, err := model.NewVariableIter(blanket)
+	if err != nil {
+		return nil, err
+	}
+	for {
+		err := varIter.Val(varState)
+		if err != nil {
+			return nil, err
+		}
+
+		// Iterate over all functions, updating varState
+		for i := range funcResults {
+			funcResults[i] = 0.0
+		}
+
+		for _, fun := range base.varFuncs[collVar.ID] {
+			// Populate call value slice and save where our collapsed variable is
+			callVals := callValBuffer[:len(fun.Vars)]
+			marginalVal := -1
+			for i, v := range fun.Vars {
+				stateIdx := blanketXref[v.ID]
+				callVals[i] = varState[stateIdx]
+				if v.ID == collVar.ID {
+					marginalVal = callVals[i]
+				}
+			}
+			if marginalVal < 0 {
+				return nil, errors.Errorf("Func %v - could not find the variable being marginalized", fun.Name)
+			}
+
+			// Call function and add (in log space, so really mutliply) to our
+			// function results.
+			result, err := fun.Eval(callVals)
+			if err != nil {
+				return nil, errors.Wrapf(err, "Collapsing error calling function %v (%+v)", fun.Name, callVals)
+			}
+
+			funcResults[marginalVal] += result
+		}
+
+		// Now update our marginal with the final function result. Remember
+		// that we need to convert from log space first
+		for i, val := range funcResults {
+			collVar.Marginal[i] += math.Exp(val)
+		}
+
+		// Time for next variable state
+		if !varIter.Next() {
+			break
+		}
+	}
+
+	// We have now collected an entire marginal
+	err = collVar.NormMarginal()
+	if err != nil {
+		return nil, err
+	}
+
+	// All done - update the variable itself from our cloned copy and return
+	// our results
+	dest := pgm.Vars[varIdx]
+	dest.Collapsed = true
+	copy(dest.Marginal, collVar.Marginal)
+	return dest, nil
 }
 
 // Sample returns a single sample - implements FullSampler
