@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -186,4 +187,67 @@ func TestFuncClone(t *testing.T) {
 	f2 := f1.Clone()
 	assert.True(f1 != f2) // point to different objects
 	assert.Equal(f1, f2)  // look exactly the same
+}
+
+// test function creation
+func TestFuncBuildup(t *testing.T) {
+	assert := assert.New(t)
+
+	// handy short vars for below
+	_, _, v2, v3 := testVars()
+	f, err := NewFunction(0, []*Variable{v2, v3})
+	assert.NoError(err)
+
+	// Add 1 for every variable configuration
+	vi, err := NewVariableIter(f.Vars)
+	assert.NoError(err)
+	vals := make([]int, len(f.Vars))
+	for {
+		err := vi.Val(vals)
+		assert.NoError(err)
+		if err != nil {
+			return
+		}
+
+		f.AddValue(vals, 1.0)
+
+		if !vi.Next() {
+			break
+		}
+	}
+
+	// Should have a 2x3 table with every entry at 1.0
+	assert.Equal(6, len(f.Table))
+	for _, v := range f.Table {
+		assert.InEpsilon(1.0, v, 1e-6)
+	}
+
+	// Now add some more and recheck
+	vi, err = NewVariableIter(f.Vars)
+	assert.NoError(err)
+	for {
+		err := vi.Val(vals)
+		assert.NoError(err)
+		if err != nil {
+			return
+		}
+
+		f.AddValue(vals, 2.42)
+
+		if !vi.Next() {
+			break
+		}
+	}
+
+	// 1 + 2.42 = 3.42
+	for _, v := range f.Table {
+		assert.InEpsilon(3.42, v, 1e-6)
+	}
+
+	// Now make sure that log space addition fails and doesn't break anything
+	// (and don't forget we're in log space when checking values :)
+	assert.NoError(f.UseLogSpace())
+	assert.Error(f.AddValue([]int{0, 0}, 123.45))
+	fmt.Printf("%+v\n", f.Table) // TODO: remove
+	assert.InEpsilon(math.Log(3.42), f.Table[0], 1e-6)
 }

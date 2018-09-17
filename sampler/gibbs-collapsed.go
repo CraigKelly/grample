@@ -59,8 +59,7 @@ func NewGibbsCollapsed(gen *rand.Generator, m *model.Model) (*GibbsCollapsed, er
 const NeighborVarMax = 18
 
 // TODO: our collapse methodology is flawed. To fix:
-// * Update function to allow build by addition (similar Function.Eval)
-// * Build a new function for the blanket
+// * Build a new function for the blanket with value add (don't forget to set the new function to log space)
 // * Remove the old functions
 // * Re-calculate variable neighborhood here and the varfuncs stuff in the simple sampler
 // * Sampling continues as before (even for collapsed which will only have 1 function)

@@ -151,6 +151,26 @@ func (f *Function) Eval(values []int) (float64, error) {
 	return f.Table[i], nil
 }
 
+// AddValue allows value adding based on the current input setting in values.
+// This is used for building new functions (i.e see collapsed-gibbs)
+func (f *Function) AddValue(values []int, inc float64) error {
+	if f.IsLog {
+		return errors.New("Can not AddValue if function is already in log space")
+	}
+
+	i, err := f.calcIndex(values)
+	if err != nil {
+		return err
+	}
+
+	if i < 0 || i >= len(f.Table) {
+		return errors.Errorf("Could not find table entry for values %v", values)
+	}
+
+	f.Table[i] += inc
+	return nil
+}
+
 // calcIndex generates an index into the table given a vector of values.
 func (f *Function) calcIndex(values []int) (int, error) {
 	if len(values) != len(f.Vars) {
