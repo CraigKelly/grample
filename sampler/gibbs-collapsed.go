@@ -56,7 +56,16 @@ func NewGibbsCollapsed(gen *rand.Generator, m *model.Model) (*GibbsCollapsed, er
 // NeighborVarMax is the max size of the neighborhood allowed for a
 // variable that we will collapse. Note that it includes the variable itself,
 // so the total size of input space is 2^(M-1) where M is NeighborVarMax.
-const NeighborVarMax = 22
+const NeighborVarMax = 18
+
+// TODO: our collapse methodology is flawed. To fix:
+// * Update function to allow build by addition (similar Function.Eval)
+// * Build a new function for the blanket
+// * Remove the old functions
+// * Re-calculate variable neighborhood here and the varfuncs stuff in the simple sampler
+// * Sampling continues as before (even for collapsed which will only have 1 function)
+// * Note that although sampling continues, we have already calculated the marginal for the collapsed variable
+// * Add some tests for this stuff - including that collapsed variables are only in 1 function
 
 // Collapse integrates out the variable given by index. If the index is < 0, a
 // variable is randomly chosen. The collapsed variable is returned for
@@ -90,16 +99,6 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 	}
 	if varIdx >= len(pgm.Vars) {
 		return nil, errors.Errorf("Invalid variable index: max is %d", len(pgm.Vars)-1)
-	}
-
-	// Special case: collapsing a variable of cardinality 1 is easy
-	if pgm.Vars[varIdx].Card == 1 {
-		err := pgm.Vars[varIdx].NormMarginal()
-		if err != nil {
-			return nil, err
-		}
-		pgm.Vars[varIdx].Collapsed = true
-		return pgm.Vars[varIdx], nil
 	}
 
 	// Get our target variable - note that we clone the variable and zero the
