@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -63,12 +64,16 @@ func (m *monitor) Start() error {
 	m.LastMeanJSD = expvar.NewFloat("Last-Mean-JSD")
 	m.LastMaxJSD = expvar.NewFloat("Last-Max-JSD")
 
+	// Actual server that will close the stopped channel on exit
+	started := make(chan struct{})
 	go func() {
 		defer close(m.stopped)
 		fmt.Fprintf(os.Stderr, "HTTP now available at %v (see debug/vars/)\n", m.server.Addr)
+		close(started)
 		m.server.ListenAndServe()
 	}()
 
+	<-started
 	return nil
 }
 
@@ -78,6 +83,11 @@ func (m *monitor) Stop() {
 	}
 
 	m.server.Close()
-	<-m.stopped
-	fmt.Fprintf(os.Stderr, "HTTP Info Stopped\n")
+
+	select {
+	case <-m.stopped:
+		fmt.Fprintf(os.Stderr, "HTTP Info Stopped\n")
+	case <-time.After(2 * time.Second):
+		fmt.Fprintf(os.Stderr, "HTTP would NOT stop: just continuing on\n")
+	}
 }
