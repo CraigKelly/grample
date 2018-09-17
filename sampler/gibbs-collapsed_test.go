@@ -1,7 +1,6 @@
 package sampler
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/CraigKelly/grample/model"
@@ -49,16 +48,9 @@ func TestWorkingGibbsCollapsed(t *testing.T) {
 	assert.InEpsilon(0.25, pgm.Vars[0].Marginal[0], 0.2)
 	assert.InEpsilon(0.75, pgm.Vars[0].Marginal[1], 0.2)
 
-	// TODO: remove
-	for _, v := range samp.baseSampler.pgm.Vars {
-		fmt.Printf("%v %+v\n", v.ID, v)
-	}
 	v, err = samp.Collapse(0)
 	assert.Equal(0, v.ID)
 	assert.NoError(err)
-	for _, v := range samp.baseSampler.pgm.Vars {
-		fmt.Printf("%v %+v\n", v.ID, v)
-	}
 
 	// Keep this in once we're fixed
 	assert.InEpsilon(0.25, pgm.Vars[0].Marginal[0], 1e-5)
@@ -130,11 +122,6 @@ func TestFullGibbsCollapsed(t *testing.T) {
 	assert.Error(err)
 	assert.Nil(v)
 	assert.Equal(3, collCount())
-
-	// TODO: remove this
-	for _, v := range samp.baseSampler.pgm.Vars {
-		fmt.Printf("%v %+v\n", v.ID, v)
-	}
 
 	// TODO: check collapsed vars
 }

@@ -193,7 +193,9 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 		// Now update our marginal with the final function result. Remember
 		// that we need to convert from log space first
 		for i, val := range funcResults {
-			collVar.Marginal[i] += math.Exp(val)
+			if math.Abs(val) > 1e-7 {
+				collVar.Marginal[i] += math.Exp(val)
+			}
 		}
 
 		// Time for next variable state
