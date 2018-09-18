@@ -255,24 +255,13 @@ func (g *GibbsSimple) SampleVar(varIdx int, s []int) (int, error) {
 		}
 	}
 
-	// Select value based on the factor weights for our current variable
-	r := g.gen.Float64() * totWeights
-	nextVal := -1
-	for i, w := range sampleWeights {
-		if r <= w {
-			// Remember, it's an array of weights from 0 -> Card-1: we are
-			// selecting an index based on those weights
-			nextVal = i
-			break
-		}
-		r -= w
+	// Select value based on the factor weights for our current variable and
+	// then update saved copy with new value and copy to caller's sample.
+	nextVal, err := g.weighted.WeightedSample(len(sampleWeights), sampleWeights)
+	if err != nil {
+		return -1, nil
 	}
 
-	if nextVal < 0 {
-		return -1, errors.Errorf("Failed to select a value from var %v, Exp(factor-weights)==%v", sampleVar.Name, sampleWeights)
-	}
-
-	// Update saved copy with new value and copy to caller's sample
 	g.last[varIdx] = nextVal
 	copy(s, g.last)
 
