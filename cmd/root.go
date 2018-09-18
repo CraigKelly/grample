@@ -144,6 +144,27 @@ func Execute() {
 		Long:  cmdHelp,
 	}
 
+	var collapseCmd = &cobra.Command{
+		Use:   "collapse",
+		Short: "Single-Variable Collapse Checking for a Model",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			err := sp.Setup()
+			if err != nil {
+				return err
+			}
+
+			err = sp.mon.Start()
+			if err != nil {
+				return err
+			}
+			defer sp.mon.Stop()
+
+			return CollapsedIteration(sp)
+		},
+	}
+
+	cmd.AddCommand(collapseCmd)
+
 	pf := cmd.PersistentFlags()
 	pf.BoolVarP(&sp.verbose, "verbose", "v", false, "Verbose logging (default is much more parsimonious)")
 	pf.Int64VarP(&sp.randomSeed, "seed", "e", 0, "Random seed to use")
