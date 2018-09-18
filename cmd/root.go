@@ -146,7 +146,7 @@ func Execute() {
 
 	pf := cmd.PersistentFlags()
 	pf.BoolVarP(&sp.verbose, "verbose", "v", false, "Verbose logging (default is much more parsimonious)")
-	pf.Int64VarP(&sp.randomSeed, "seed", "e", 1, "Random seed to use")
+	pf.Int64VarP(&sp.randomSeed, "seed", "e", 0, "Random seed to use")
 	pf.StringVarP(&sp.uaiFile, "model", "m", "", "UAI model file to read")
 	pf.BoolVarP(&sp.useEvidence, "evidence", "d", false, "Apply evidence from evidence file (name inferred from model file")
 	pf.BoolVarP(&sp.solFile, "solution", "o", false, "Use UAI MAR solution file to score (name inferred from model file)")
@@ -249,6 +249,10 @@ func modelMarginals(sp *startupParams) error {
 	}
 
 	// Some of our parameters are based on variable count
+	if sp.randomSeed < 1 {
+		n := time.Now()
+		sp.randomSeed = int64(n.Second()) + int64(n.Nanosecond()) + int64(n.Minute())
+	}
 	if sp.burnIn < 0 {
 		sp.burnIn = int64(2000 * len(mod.Vars))
 	}
@@ -303,7 +307,7 @@ func modelMarginals(sp *startupParams) error {
 				return errors.Wrapf(err, "Could not collapse random var on startup")
 			}
 			sp.out.Printf("        - Collaped variable %v:%v\n", colVar.ID, colVar.Name)
-			sp.verb.Printf("MARGINAL: %+v\n", colVar.Marginal)
+			sp.out.Printf("MARGINAL: %+v\n", colVar.Marginal)
 			samp = coll
 		} else {
 			return errors.Errorf("Unknown Sampler: %s", sp.samplerName)
