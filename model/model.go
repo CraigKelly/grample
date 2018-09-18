@@ -136,11 +136,18 @@ func (m *Model) Check() error {
 		return errors.Errorf("Fixed variable count is %d - all vars are fixed!", fixCount)
 	}
 
+	funcNames := make(map[string]bool)
+
 	for _, f := range m.Funcs {
 		e := f.Check()
 		if e != nil {
 			return errors.Wrapf(e, "Model %s has an invalid Function %s", m.Name, f.Name)
 		}
+		funcNames[f.Name] = true
+	}
+
+	if len(funcNames) != len(m.Funcs) {
+		return errors.Errorf("There are %v funcs, but %v names", len(m.Funcs), len(funcNames))
 	}
 
 	return nil

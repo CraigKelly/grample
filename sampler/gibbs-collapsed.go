@@ -1,6 +1,7 @@
 package sampler
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/CraigKelly/grample/model"
@@ -25,13 +26,31 @@ func NewGibbsCollapsed(gen *rand.Generator, m *model.Model) (*GibbsCollapsed, er
 		return nil, errors.Wrap(err, "Base simple Gibbs sampler could not be created")
 	}
 
+	s := &GibbsCollapsed{
+		baseSampler:  base,
+		varNeighbors: nil,
+	}
+
+	err = s.FunctionsChanged()
+	if err != nil {
+		return nil, err
+	}
+
+	return s, nil
+}
+
+// FunctionsChanged is called when the models Function array has changed. That
+// means we need to update some of our bookkeeping.
+func (g *GibbsCollapsed) FunctionsChanged() error {
+	base := g.baseSampler
+
 	// A lookup from variables to their neighbors
 	neighbors := make([]varSet, len(base.pgm.Vars))
 
 	// Create a neighbor entry per variable
 	for i, v := range base.pgm.Vars {
 		if i != v.ID {
-			return nil, errors.Errorf("Invalid variable setup: [%d] => %+v", i, v)
+			return errors.Errorf("Invalid variable setup: [%d] => %+v", i, v)
 		}
 		neighbors[i] = make(varSet)
 	}
@@ -45,26 +64,14 @@ func NewGibbsCollapsed(gen *rand.Generator, m *model.Model) (*GibbsCollapsed, er
 		}
 	}
 
-	s := &GibbsCollapsed{
-		baseSampler:  base,
-		varNeighbors: neighbors,
-	}
-
-	return s, nil
+	g.varNeighbors = neighbors
+	return nil
 }
 
 // NeighborVarMax is the max size of the neighborhood allowed for a
 // variable that we will collapse. Note that it includes the variable itself,
 // so the total size of input space is 2^(M-1) where M is NeighborVarMax.
 const NeighborVarMax = 18
-
-// TODO: our collapse methodology is flawed. To fix:
-// * Build a new function for the blanket with value add (don't forget to set the new function to log space)
-// * Remove the old functions
-// * Re-calculate variable neighborhood here and the varfuncs stuff in the simple sampler
-// * Sampling continues as before (even for collapsed which will only have 1 function)
-// * Note that although sampling continues, we have already calculated the marginal for the collapsed variable
-// * Add some tests for this stuff - including that collapsed variables are only in 1 function
 
 // Collapse integrates out the variable given by index. If the index is < 0, a
 // variable is randomly chosen. The collapsed variable is returned for
@@ -127,13 +134,24 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 		}
 	}
 
-	// Check our functions to make sure everything is OK
+	// Get all the functions we'll need to collapse and precreate a cross-ref.
+	// We'll also check our functions to make sure everything is OK
 	funcs := g.baseSampler.varFuncs[varIdx]
+	funcNameRef := make(map[string]bool)
 	for _, f := range funcs {
+		funcNameRef[f.Name] = true
 		if !f.IsLog {
 			return nil, errors.Errorf("Function %v is not set up for Log Space", f.Name)
 		}
 	}
+
+	// We will be creating a new function from our collapsing work
+	postFunc, err := model.NewFunction(len(pgm.Funcs), blanket)
+	if err != nil {
+		return nil, err
+	}
+	// We also override the name
+	postFunc.Name = fmt.Sprintf("COLLAPSE-%v", collVar.Name)
 
 	// We need a buffer to call each function AND a buffer to iterate function values
 	callValBuffer := base.varPool.Get().([]int)
@@ -163,6 +181,9 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 			funcResults[i] = 0.0
 		}
 
+		// We need a total result for our new function as well
+		totResult := 0.0
+
 		for _, fun := range base.varFuncs[collVar.ID] {
 			// Populate call value slice and save where our collapsed variable is
 			callVals := callValBuffer[:len(fun.Vars)]
@@ -186,6 +207,7 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 			}
 
 			funcResults[marginalVal] += result
+			totResult += result
 		}
 
 		// Now update our marginal with the final function result. Remember
@@ -196,6 +218,11 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 			}
 		}
 
+		// Also update our new function
+		if math.Abs(totResult) > 1e-7 {
+			postFunc.AddValue(varState, math.Exp(totResult))
+		}
+
 		// Time for next variable state
 		if !varIter.Next() {
 			break
@@ -204,6 +231,46 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 
 	// We have now collected an entire marginal
 	err = collVar.NormMarginal()
+	if err != nil {
+		return nil, err
+	}
+
+	// We also have a new function
+	err = postFunc.UseLogSpace()
+	if err != nil {
+		return nil, err
+	}
+
+	// Add our new function and delete the replaced functions
+	pgm.Funcs = append(pgm.Funcs, postFunc)
+
+	insert := -1
+	for i, f := range pgm.Funcs {
+		if ok, del := funcNameRef[f.Name]; ok && del {
+			continue // We want to delete this function
+		}
+		insert++
+		if insert != i {
+			pgm.Funcs[insert] = pgm.Funcs[i]
+		}
+	}
+	if insert < 0 {
+		return nil, errors.Errorf("No functions left after collapse!")
+	}
+	pgm.Funcs = pgm.Funcs[:insert+1]
+
+	// Now we need to update internal tracking: both in this sampler and in the
+	// base/simple sampler. We also need to re-run model checking to make sure
+	// we haven't broken anything
+	err = base.FunctionsChanged()
+	if err != nil {
+		return nil, err
+	}
+	err = g.FunctionsChanged()
+	if err != nil {
+		return nil, err
+	}
+	err = pgm.Check()
 	if err != nil {
 		return nil, err
 	}
@@ -231,30 +298,7 @@ func (g *GibbsCollapsed) Sample(s []int) (int, error) {
 		return -1, err
 	}
 
-	v := pgm.Vars[varIdx]
-	if !v.Collapsed {
-		// Not collapsed: just use regular sampling
-		return base.SampleVar(varIdx, s)
-	}
-
-	// We have a collapsed variable, so we need to from it's marginal (which we
-	// have already arranged to sum to 1.0)
-	r := base.gen.Float64()
-	nextVal := -1
-	for i, w := range v.Marginal {
-		if r <= w {
-			nextVal = i
-			break
-		}
-		r -= w
-	}
-
-	if nextVal < 0 {
-		return -1, errors.Errorf("Failed to sample from collapsed var %v (%+v)", v.Name, v.Marginal)
-	}
-
-	v.State["Selections"] += 1.0
-	base.last[varIdx] = nextVal
-	copy(s, base.last)
-	return varIdx, nil
+	// Our function updates above mean that both collapsed and un-collapsed
+	// variables can now be sampled by the simple sampler
+	return base.SampleVar(varIdx, s)
 }

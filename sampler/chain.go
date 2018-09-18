@@ -125,7 +125,7 @@ func (c *Chain) AdvanceChain(wg *sync.WaitGroup) error {
 
 		// If we have N variables, we should take at least N samples before
 		// checking to see if we need to keep working. However, as a simple
-		// optmiization we currently run for 2N.
+		// optmization we currently run for 2N.
 		batchSize := len(c.Target.Vars) * 2
 
 		// While there is work to do, take {var count} samples

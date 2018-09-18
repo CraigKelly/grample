@@ -25,6 +25,12 @@ type VarSampler interface {
 	VarSample(vs []*model.Variable, excludeCollapsed bool) (int, error)
 }
 
+// WeightedSampler provides a way to select from a cardinality of values given
+// an array of weights.
+type WeightedSampler interface {
+	WeightedSample(card int, weights []float64) (int, error)
+}
+
 // UniformSampler provides uniform sampling for our interfaces
 type UniformSampler struct {
 	gen  *rand.Generator
@@ -50,13 +56,16 @@ func NewUniformSampler(gen *rand.Generator, maxVars int) (*UniformSampler, error
 	return s, nil
 }
 
+// maxCard is the maximum cardinality supported by our UniSample and
+// WeightedSample below.
+const maxCard = 1 << 30
+
 // UniSample samples uniformly from [0, card).
 func (s *UniformSampler) UniSample(card int) (int, error) {
 	if card < 1 {
 		return -1, errors.New("Can not sample if Cardinality < 1")
 	}
 
-	const maxCard = 1 << 30
 	if card > maxCard {
 		return -1, errors.Errorf("Cardinality above %d not supported", maxCard)
 	}
@@ -66,6 +75,50 @@ func (s *UniformSampler) UniSample(card int) (int, error) {
 	}
 
 	return int(s.gen.Int31n(int32(card))), nil
+}
+
+// WeightedSample samples from [0, card) based on the card-sized array of
+// weights. Mainly for sampling directly from a variable's marginal.
+func (s *UniformSampler) WeightedSample(card int, weights []float64) (int, error) {
+	if card < 1 {
+		return -1, errors.New("Can not sample if Cardinality < 1")
+	}
+
+	if card > maxCard {
+		return -1, errors.Errorf("Cardinality above %d not supported", maxCard)
+	}
+
+	if len(weights) != card {
+		return -1, errors.Errorf("Weight array size %d must match cardinality %d", len(weights), card)
+	}
+
+	if card == 1 {
+		return 0, nil
+	}
+
+	totWeight := 0.0
+	for _, w := range weights {
+		if w <= 0.0 {
+			return -1, errors.Errorf("Weights must be > 0.0")
+		}
+		totWeight += w
+	}
+
+	r := s.gen.Float64() * totWeight
+	selVal := -1
+	for i, w := range weights {
+		if r <= w {
+			selVal = i
+			break
+		}
+		r -= w
+	}
+
+	if selVal < 0 {
+		return -1, errors.Errorf("Failed to sample for card  %v (%+v)", card, weights)
+	}
+
+	return selVal, nil
 }
 
 // VarSample implements VarSample interface. If excludeCollapsed is true, no

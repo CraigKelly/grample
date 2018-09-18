@@ -123,3 +123,58 @@ func TestUniformSamplerFixed(t *testing.T) {
 	i, e = uni.VarSample(vars, true)
 	assert.Error(e)
 }
+
+func TestWeightedSampler(t *testing.T) {
+	assert := assert.New(t)
+
+	gen, err := rand.NewGenerator(42)
+	assert.NoError(err)
+	uni, err := NewUniformSampler(gen, 32)
+	assert.NoError(err)
+
+	var i int
+	var e error
+
+	i, e = uni.WeightedSample(0, []float64{})
+	assert.Error(e)
+
+	i, e = uni.WeightedSample((1<<30)+1, []float64{})
+	assert.Error(e)
+
+	i, e = uni.WeightedSample(1, []float64{})
+	assert.Error(e)
+	i, e = uni.WeightedSample(1, []float64{1.0, 1.0})
+	assert.Error(e)
+
+	i, e = uni.WeightedSample(2, []float64{1.0, -1.0})
+	assert.Error(e)
+
+	i, e = uni.WeightedSample(1, []float64{1.0})
+	assert.NoError(e)
+	assert.Equal(0, i)
+
+	weights := []float64{100.1, 200.2}
+	headCount := 0.0
+	tailCount := 0.0
+	flipCount := 0
+	for headCount < 100.0 || tailCount < 100.0 {
+		i, e := uni.WeightedSample(2, weights)
+		assert.NoError(e)
+		assert.True(i >= 0 && i <= 1)
+		if i == 0 {
+			headCount += 1.0
+		} else if i == 1 {
+			tailCount += 1.0
+		} else {
+			assert.True(false, "TEST BUG: how did this happen?")
+		}
+
+		flipCount++
+		if flipCount > 5000 {
+			assert.True(false, "TEST BUG: too many flips %v (%v / %v)", flipCount, headCount, tailCount)
+			break
+		}
+	}
+
+	assert.InEpsilon(0.5, headCount/tailCount, 0.1)
+}

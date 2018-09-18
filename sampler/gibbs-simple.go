@@ -14,6 +14,7 @@ type GibbsSimple struct {
 	gen         *rand.Generator
 	pgm         *model.Model
 	varSelector VarSampler
+	weighted    WeightedSampler
 	varFuncs    map[int][]*model.Function
 	last        []int
 	valuePool   *sync.Pool
@@ -58,6 +59,7 @@ func NewGibbsSimple(gen *rand.Generator, m *model.Model) (*GibbsSimple, error) {
 		gen:         gen,
 		pgm:         m,
 		varSelector: uniform,
+		weighted:    uniform,
 		varFuncs:    make(map[int][]*model.Function),
 		last:        make([]int, len(m.Vars)),
 		valuePool:   valuePool,
@@ -108,6 +110,36 @@ func NewGibbsSimple(gen *rand.Generator, m *model.Model) (*GibbsSimple, error) {
 	}
 
 	return s, nil
+}
+
+// FunctionsChanged is called when the models Function array has changed. That
+// means we need to update some of our bookkeeping.
+func (g *GibbsSimple) FunctionsChanged() error {
+	g.varFuncs = make(map[int][]*model.Function)
+
+	for _, f := range g.pgm.Funcs {
+		if !f.IsLog {
+			return errors.Errorf("Function %v is not in log space on FunctionsChanged", f.Name)
+		}
+		for _, v := range f.Vars {
+			g.varFuncs[v.ID] = append(g.varFuncs[v.ID], f)
+		}
+	}
+
+	// Now we need to reset our last position (we do this instead of burnin)
+	for i, v := range g.pgm.Vars {
+		if v.FixedVal >= 0 {
+			g.last[i] = v.FixedVal
+		} else {
+			val, err := g.weighted.WeightedSample(v.Card, v.Marginal)
+			if err != nil {
+				return errors.Wrapf(err, "Could no generated a start sample for var %v", v.Name)
+			}
+			g.last[i] = val
+		}
+	}
+
+	return nil
 }
 
 // Sample returns a single sample - implements FullSampler

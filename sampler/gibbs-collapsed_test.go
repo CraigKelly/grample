@@ -122,8 +122,6 @@ func TestFullGibbsCollapsed(t *testing.T) {
 	assert.Error(err)
 	assert.Nil(v)
 	assert.Equal(3, collCount())
-
-	// TODO: check collapsed vars
 }
 
 var colModIts int

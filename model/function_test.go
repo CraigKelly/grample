@@ -1,7 +1,6 @@
 package model
 
 import (
-	"fmt"
 	"math"
 	"testing"
 
@@ -248,6 +247,5 @@ func TestFuncBuildup(t *testing.T) {
 	// (and don't forget we're in log space when checking values :)
 	assert.NoError(f.UseLogSpace())
 	assert.Error(f.AddValue([]int{0, 0}, 123.45))
-	fmt.Printf("%+v\n", f.Table) // TODO: remove
 	assert.InEpsilon(math.Log(3.42), f.Table[0], 1e-6)
 }
