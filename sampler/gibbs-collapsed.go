@@ -134,7 +134,7 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 		}
 	}
 
-	// Get all the functions we'll need to collapse and precreate a cross-ref.
+	// Get all the functions we'll need to collapse and pre-create a cross-ref.
 	// We'll also check our functions to make sure everything is OK
 	funcs := g.baseSampler.varFuncs[varIdx]
 	funcNameRef := make(map[string]bool)
@@ -146,11 +146,11 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 	}
 
 	// We will be creating a new function from our collapsing work
+	// Note that we also override the name
 	postFunc, err := model.NewFunction(len(pgm.Funcs), blanket)
 	if err != nil {
 		return nil, err
 	}
-	// We also override the name
 	postFunc.Name = fmt.Sprintf("COLLAPSE-%v", collVar.Name)
 
 	// We need a buffer to call each function AND a buffer to iterate function values
@@ -178,7 +178,7 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 
 		// Iterate over all functions, updating varState
 		for i := range funcResults {
-			funcResults[i] = 0.0
+			funcResults[i] = math.NaN() // Detect un-seen vals
 		}
 
 		// We need a total result for our new function as well
@@ -206,22 +206,26 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 				return nil, errors.Wrapf(err, "Collapsing error calling function %v (%+v)", fun.Name, callVals)
 			}
 
+			// Make sure to remove NaN if this is the first time we've seen this value
+			if math.IsNaN(funcResults[marginalVal]) {
+				funcResults[marginalVal] = 0.0
+			}
 			funcResults[marginalVal] += result
 			totResult += result
 		}
 
 		// Now update our marginal with the final function result. Remember
-		// that we need to convert from log space first
+		// that we need to convert from log space first.  Also note that if we
+		// have an unseen result, then we just default it to something small
 		for i, val := range funcResults {
-			if math.Abs(val) > 1e-7 {
-				collVar.Marginal[i] += math.Exp(val)
+			if math.IsNaN(val) {
+				val = -10.0
 			}
+			collVar.Marginal[i] += math.Exp(val)
 		}
 
 		// Also update our new function
-		if math.Abs(totResult) > 1e-7 {
-			postFunc.AddValue(varState, math.Exp(totResult))
-		}
+		postFunc.AddValue(varState, math.Exp(totResult))
 
 		// Time for next variable state
 		if !varIter.Next() {
