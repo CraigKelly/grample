@@ -105,7 +105,7 @@ func (v *Variable) Check() error {
 // NormMarginal insures/scales the current Marginal vector to sum to 1
 func (v *Variable) NormMarginal() error {
 	if v.Card != len(v.Marginal) {
-		return errors.Errorf("Var %s - can not norm: Card=%d, Len(m)=%d", v.Card, len(v.Marginal))
+		return errors.Errorf("Var %s - can not norm: Card=%d, Len(m)=%d", v.Name, v.Card, len(v.Marginal))
 	}
 
 	if v.Card < 1 {
