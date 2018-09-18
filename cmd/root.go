@@ -116,50 +116,45 @@ const cmdHelp = `grample provides sampling-based inference for PGM's. Features i
 - An experimental version of an Adaptive Gibbs sampler
 `
 
+type grampleCmd func(*startupParams) error
+
+func runGrampleCmd(sp *startupParams, f grampleCmd) error {
+	err := sp.Setup()
+	if err != nil {
+		return err
+	}
+
+	sp.out.Printf("grample\n")
+
+	err = sp.mon.Start()
+	if err != nil {
+		return err
+	}
+
+	defer sp.mon.Stop()
+
+	return f(sp)
+}
+
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	sp := &startupParams{}
 
-	rootRunE := func(cmd *cobra.Command, args []string) error {
-		err := sp.Setup()
-		if err != nil {
-			return err
-		}
-		sp.out.Printf("grample\n")
-
-		err = sp.mon.Start()
-		if err != nil {
-			return err
-		}
-		defer sp.mon.Stop()
-
-		return modelMarginals(sp)
-	}
-
 	var cmd = &cobra.Command{
 		Use:   "grample",
-		RunE:  rootRunE,
 		Short: "(Probalistic) Graphical Model Sampling Methods",
 		Long:  cmdHelp,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runGrampleCmd(sp, modelMarginals)
+		},
 	}
 
 	var collapseCmd = &cobra.Command{
 		Use:   "collapse",
 		Short: "Single-Variable Collapse Checking for a Model",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := sp.Setup()
-			if err != nil {
-				return err
-			}
-
-			err = sp.mon.Start()
-			if err != nil {
-				return err
-			}
-			defer sp.mon.Stop()
-
-			return CollapsedIteration(sp)
+			return runGrampleCmd(sp, CollapsedIteration)
 		},
 	}
 
