@@ -3,30 +3,20 @@ title: grample README
 subtitle: Sampling for Probabilistic Graphical Models
 ---
 
+TODO: This entire document
+
 # Introduction
 
-TODO: this doc
-
-TODO: a readme for all the other folders
-
-TODO: brief summary of all the other folders
+TBD
 
 # Architecture Overview
 
-TODO: general description
-
-TODO: rand usage (see rand package)
+TBD
 
 # Dependencies
 
-TODO: general
-
-TODO: discuss gonum (if we ever use it?)
-
-TODO: the make targets lint-install, sys-update, and update
-
-TODO: switch to something like the mersenne twister instead of the default rand source?
+TBD
 
 # Hacking
 
-TODO
+TBD
