@@ -4,6 +4,7 @@ grample
 cover.html
 *.json
 temp.*
+*-collapse.txt
 
 # Binaries for programs and plugins
 *.exe

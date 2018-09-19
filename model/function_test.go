@@ -198,7 +198,7 @@ func TestFuncBuildup(t *testing.T) {
 	assert.NoError(err)
 
 	// Add 1 for every variable configuration
-	vi, err := NewVariableIter(f.Vars)
+	vi, err := NewVariableIter(f.Vars, false)
 	assert.NoError(err)
 	vals := make([]int, len(f.Vars))
 	for {
@@ -222,7 +222,7 @@ func TestFuncBuildup(t *testing.T) {
 	}
 
 	// Now add some more and recheck
-	vi, err = NewVariableIter(f.Vars)
+	vi, err = NewVariableIter(f.Vars, false)
 	assert.NoError(err)
 	for {
 		err := vi.Val(vals)

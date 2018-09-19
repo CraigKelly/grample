@@ -68,10 +68,20 @@ func (g *GibbsCollapsed) FunctionsChanged() error {
 	return nil
 }
 
+// BlanketSize return the variable's neighborhood size
+func (g *GibbsCollapsed) BlanketSize(v *model.Variable) int {
+	return len(g.varNeighbors[v.ID])
+}
+
+// FunctionCount returns the variable's factor count
+func (g *GibbsCollapsed) FunctionCount(v *model.Variable) int {
+	return len(g.baseSampler.varFuncs[v.ID])
+}
+
 // NeighborVarMax is the max size of the neighborhood allowed for a
 // variable that we will collapse. Note that it includes the variable itself,
 // so the total size of input space is 2^(M-1) where M is NeighborVarMax.
-const NeighborVarMax = 8
+const NeighborVarMax = 10
 
 // Collapse integrates out the variable given by index. If the index is < 0, a
 // variable is randomly chosen. The collapsed variable is returned for
@@ -111,27 +121,37 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 	// marginal for summing up below
 	collVar := pgm.Vars[varIdx].Clone()
 	if collVar.FixedVal >= 0 {
-		return nil, errors.Errorf("Can not collapsed Fixed Val variable %v:%v", collVar.ID, collVar.Name)
+		return nil, errors.Errorf("Can not collapse Fixed Val variable %v:%v", collVar.ID, collVar.Name)
 	}
 	if collVar.Collapsed {
 		return nil, errors.Errorf("Already collapsed variable %v:%v", collVar.ID, collVar.Name)
 	}
 	for i := 0; i < collVar.Card; i++ {
-		collVar.Marginal[i] = 1e-6 // We start small instead of just a zero value
+		collVar.Marginal[i] = 1e-12 // We start small instead of just a zero value
 	}
 
 	// IMPORTANT: remember in our blanket array, the variable index is NO
 	// LONGER EQUAL to v.ID.  That's why we need an xref: we can get to an
 	// index in blanket (and varState defined below) from a variable ID via
-	// blanketXref.
+	// blanketXref. We also take this chance to grab the collapsing variable's
+	// index since we'll want want to know it value when we're iterating over
+	// the entire variable space below.
 	blanket := make([]*model.Variable, 0, len(pgm.Vars))
 	blanketXref := make(map[int]int)
+	collIdx := -1
 	for vi, inBlanket := range g.varNeighbors[varIdx] {
 		if inBlanket {
 			v := pgm.Vars[vi]
 			blanket = append(blanket, pgm.Vars[vi])
 			blanketXref[v.ID] = len(blanket) - 1
+			if collVar.ID == v.ID {
+				collIdx = len(blanket) - 1
+			}
 		}
+	}
+
+	if collIdx < 0 {
+		return nil, errors.Errorf("Collapsing variable not in its own blanket")
 	}
 
 	// Get all the functions we'll need to collapse and pre-create a cross-ref.
@@ -160,13 +180,8 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 	varState := base.varPool.Get().([]int)
 	defer base.varPool.Put(varState)
 
-	// We also need a buffer for function results
-	funcResultsBuffer := base.valuePool.Get().([]float64)
-	defer base.valuePool.Put(funcResultsBuffer)
-	funcResults := funcResultsBuffer[:collVar.Card]
-
 	// Iterate over all configurations in the blanket/neighborhood
-	varIter, err := model.NewVariableIter(blanket)
+	varIter, err := model.NewVariableIter(blanket, true)
 	if err != nil {
 		return nil, err
 	}
@@ -176,30 +191,20 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 			return nil, err
 		}
 
+		// We need to know that current value of the variable we are collapsing
+		marginalVal := varState[collIdx]
+
 		// Iterate over all functions, updating varState
-		for i := range funcResults {
-			funcResults[i] = math.NaN() // Detect un-seen vals
-		}
-
-		// We need a total result for our new function as well
-		totResult := 0.0
-
+		funcResult := 0.0
 		for _, fun := range base.varFuncs[collVar.ID] {
-			// Populate call value slice and save where our collapsed variable is
+			// Populate call value slice
 			callVals := callValBuffer[:len(fun.Vars)]
-			marginalVal := -1
 			for i, v := range fun.Vars {
 				stateIdx := blanketXref[v.ID]
 				callVals[i] = varState[stateIdx]
-				if v.ID == collVar.ID {
-					marginalVal = callVals[i]
-				}
-			}
-			if marginalVal < 0 {
-				return nil, errors.Errorf("Func %v - could not find the variable being marginalized", fun.Name)
 			}
 
-			// Call function and add (in log space, so really mutliply) to our
+			// Call function and add (in log space, so really multiply) to our
 			// function results.
 			result, err := fun.Eval(callVals)
 			if err != nil {
@@ -207,25 +212,14 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 			}
 
 			// Make sure to remove NaN if this is the first time we've seen this value
-			if math.IsNaN(funcResults[marginalVal]) {
-				funcResults[marginalVal] = 0.0
-			}
-			funcResults[marginalVal] += result
-			totResult += result
+			funcResult += result
 		}
 
 		// Now update our marginal with the final function result. Remember
-		// that we need to convert from log space first.  Also note that if we
-		// have an unseen result, then we just default it to something small
-		for i, val := range funcResults {
-			if math.IsNaN(val) {
-				val = -10.0
-			}
-			collVar.Marginal[i] += math.Exp(val)
-		}
-
-		// Also update our new function
-		postFunc.AddValue(varState, math.Exp(totResult))
+		// that we need to convert from log space first.
+		funcResult = math.Exp(funcResult)
+		collVar.Marginal[marginalVal] += funcResult
+		postFunc.AddValue(varState, funcResult)
 
 		// Time for next variable state
 		if !varIter.Next() {
