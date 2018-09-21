@@ -1,0 +1,16 @@
+c This is a sample model taken from Deepak Venugopal's PhD dissertation.
+
+MARKOV
+3
+2 2 2
+2
+2 0 1
+2 1 2
+
+4
+ 0.5 0.0
+ 0.0 0.5
+
+4
+ 0.25 0.25
+ 0.25 0.25
