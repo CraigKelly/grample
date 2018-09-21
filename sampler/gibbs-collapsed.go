@@ -9,6 +9,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+// TODO: write an output MAR file after end of run (like merlin)
+
 // TODO: After talking to Deepak, we need to alter our collapsing so that the
 // collapsed variable is NOT in the new function. That ALSO means that we need
 // to NOT select the collapsed variable for sampling. And somehow not error out
