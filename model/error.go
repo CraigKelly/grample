@@ -6,8 +6,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// TODO: ErrorSuite creation/method for GR diagnostic
-
 // ErrorSuite represents all the loss/error functions we use to judge progress
 // across joint dist. Errors beginning with Mean are the mean across all the
 // variables in the joint distribution while Max is the maximum value for all

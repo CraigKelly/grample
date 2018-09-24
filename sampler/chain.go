@@ -1,6 +1,7 @@
 package sampler
 
 import (
+	"math"
 	"sync"
 
 	"github.com/CraigKelly/grample/buffer"
@@ -16,6 +17,73 @@ type Chain struct {
 	ChainHistory      []*buffer.CircularInt
 	TotalSampleCount  int64
 	LastSample        []int
+}
+
+// Measure is an error metric used by ChainConverge. One example is our
+// model.HellingerDiff
+type Measure func(v1 *model.Variable, v2 *model.Variable) float64
+
+// ChainConvergence returns an array of floats that corresponds to the array of
+// variables in the chains. Each float is a measure of the current convergence
+// of the specified variable, where values close to 1.0 are better. Currently
+// we return 1.0 for any collapsed variable
+func ChainConvergence(chains []*Chain, distFunc Measure) ([]float64, error) {
+	if len(chains) < 2 {
+		return nil, errors.Errorf("Convergence requires at least 2 chains")
+	}
+
+	// We need a merged chain so that we have an overall distribution
+	mergedVars, err := MergeChains(chains)
+	if err != nil {
+		return nil, err
+	}
+
+	// our actual values that we'll need
+	vals := make([]float64, len(mergedVars))
+
+	// values we can calculate before starting
+	sampleCount := float64(chains[0].ConvergenceWindow)
+	chainCount := float64(len(chains))
+
+	// for B (between-chain) calcs
+	bNorm := sampleCount / (chainCount - 1)
+
+	// for vhat calculations
+	wFactor := (sampleCount - 1) / sampleCount
+	bFactor := (chainCount + 1) / (chainCount * sampleCount)
+
+	for i, v := range mergedVars {
+		// collapsed is easy
+		if v.Collapsed {
+			vals[i] = 1.0
+			continue
+		}
+
+		// Find the within-chain and between-chain distance/error
+		W := 1e-8 // within-chain
+		B := 1e-8 // between-chain
+		for _, ch := range chains {
+			ch.ChainHistory[i].FirstHalf()
+			ch.ChainHistory[i].SecondHalf()
+
+			wOne, bOne, err := ch.ChainDist(distFunc, i, v)
+			if err != nil {
+				return nil, err
+			}
+
+			W += wOne
+			B += bOne
+		}
+		W /= chainCount
+		B *= bNorm
+
+		// Final: calcuate V-hat and the adjusted PSRF
+		vhat := (wFactor * W) + (bFactor * B)
+		vals[i] = math.Sqrt((4.0 * vhat) / (2.0 * W))
+	}
+
+	// TODO: unit testing and add to main loop
+	return vals, nil
 }
 
 // MergeChains returns a single variable array from multiple chains suitable
@@ -165,4 +233,48 @@ func (c *Chain) oneSample(updateVars bool) error {
 	}
 
 	return nil
+}
+
+// ChainDist returns the within-chain and between-chain error based for the
+// given Measure function against the specified variable.
+// varIdx is the index of the variable under consideration
+// mergedVar is a variable represented the merged chain estimate of the marginal
+// The returned tuple is (within-chain, between-chain)
+func (c *Chain) ChainDist(distFunc Measure, varIdx int, mergedVar *model.Variable) (float64, float64, error) {
+	hist := c.ChainHistory[varIdx]
+	if hist.TotalSeen < int64(c.ConvergenceWindow) {
+		return math.NaN(), math.NaN(), errors.Errorf("Total seen < Convergence Window")
+	}
+
+	vsrc := c.Target.Vars[varIdx]
+	if vsrc.Card != mergedVar.Card {
+		return math.NaN(), math.NaN(), errors.Errorf("Variable mismatch")
+	}
+
+	v1 := vsrc.Clone()
+	v2 := vsrc.Clone()
+
+	for i := range vsrc.Marginal {
+		v1.Marginal[i] = 1e-8
+		v2.Marginal[i] = 1e-8
+	}
+
+	for iter := hist.FirstHalf(); iter.Next(); {
+		val := iter.Value()
+		v1.Marginal[val] += 1.0
+	}
+	for iter := hist.SecondHalf(); iter.Next(); {
+		val := iter.Value()
+		v2.Marginal[val] += 1.0
+	}
+
+	within := distFunc(v1, v2)
+
+	// Collapse v2 into v1 for chain marginal estimate
+	for i, val := range v2.Marginal {
+		v1.Marginal[i] += val
+	}
+	between := distFunc(mergedVar, v1)
+
+	return within, between, nil
 }
