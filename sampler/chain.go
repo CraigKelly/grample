@@ -53,8 +53,8 @@ func ChainConvergence(chains []*Chain, distFunc Measure) ([]float64, error) {
 	bFactor := (chainCount + 1) / (chainCount * sampleCount)
 
 	for i, v := range mergedVars {
-		// collapsed is easy
-		if v.Collapsed {
+		// Variables that are fixed from evidence OR that are collapsed have already converged
+		if v.Collapsed || v.FixedVal >= 0 {
 			vals[i] = 1.0
 			continue
 		}
@@ -243,7 +243,7 @@ func (c *Chain) oneSample(updateVars bool) error {
 func (c *Chain) ChainDist(distFunc Measure, varIdx int, mergedVar *model.Variable) (float64, float64, error) {
 	hist := c.ChainHistory[varIdx]
 	if hist.TotalSeen < int64(c.ConvergenceWindow) {
-		return math.NaN(), math.NaN(), errors.Errorf("Total seen < Convergence Window")
+		return math.NaN(), math.NaN(), errors.Errorf("Total seen %d < Convergence Window %d", hist.TotalSeen, c.ConvergenceWindow)
 	}
 
 	vsrc := c.Target.Vars[varIdx]
