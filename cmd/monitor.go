@@ -32,7 +32,7 @@ type monitor struct {
 }
 
 // Start begins the monitor
-func (m *monitor) Start() error {
+func (m *monitor) Start(listenAddr string) error {
 	if m.info != nil {
 		return errors.Errorf("BUG: You may only start the process monitor once")
 	}
@@ -40,7 +40,7 @@ func (m *monitor) Start() error {
 	m.info = expvar.NewMap("grample-progress")
 	m.stopped = make(chan struct{})
 	m.server = &http.Server{
-		Addr: ":8000", // TODO: allow override in call to start
+		Addr: listenAddr,
 	}
 
 	// Help the user and redirect to the only thing currently available:

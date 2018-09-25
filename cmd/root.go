@@ -39,6 +39,7 @@ type startupParams struct {
 	maxIters       int64
 	maxSecs        int64
 	traceFile      string
+	monitorAddr    string
 
 	// These are created/handled by Setup
 	out    *log.Logger
@@ -108,6 +109,7 @@ func (s *startupParams) Report() {
 	s.out.Printf("Max Iters:      %12d\n", s.maxIters)
 	s.out.Printf("Max Secs:       %12d\n", s.maxSecs)
 	s.out.Printf("Rnd Seed:       %12d\n", s.randomSeed)
+	s.out.Printf("Monitor Addr:   %s\n", s.monitorAddr)
 }
 
 // Help text for root command
@@ -128,7 +130,7 @@ func runGrampleCmd(sp *startupParams, f grampleCmd) error {
 
 	sp.out.Printf("grample\n")
 
-	err = sp.mon.Start()
+	err = sp.mon.Start(sp.monitorAddr)
 	if err != nil {
 		return err
 	}
@@ -175,6 +177,7 @@ func Execute() {
 	pf.Int64VarP(&sp.maxIters, "maxiters", "i", 0, "Maximum iterations (not including burnin) 0 if < 0 will use 20000*n")
 	pf.Int64VarP(&sp.maxSecs, "maxsecs", "x", 300, "Maximum seconds to run (0 for no maximum)")
 	pf.StringVarP(&sp.traceFile, "trace", "t", "", "Optional trace file: all samples written here")
+	pf.StringVarP(&sp.monitorAddr, "addr", "a", ":8000", "Address (ip:port) that the monitor will listen at")
 
 	cmd.MarkPersistentFlagRequired("model")
 	cmd.MarkPersistentFlagRequired("sampler")
