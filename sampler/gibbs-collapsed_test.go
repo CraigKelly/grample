@@ -15,49 +15,36 @@ func TestWorkingGibbsCollapsed(t *testing.T) {
 	assert := assert.New(t)
 
 	reader := model.UAIReader{}
-	mod, err := model.NewModelFromFile(reader, "../res/one.uai", false)
+	mod, err := model.NewModelFromFile(reader, "../res/deterministic.uai", false)
 	assert.NoError(err)
 
 	gen, err := rand.NewGenerator(42)
 	assert.NoError(err)
 
-	samp, err := NewGibbsCollapsed(gen, mod)
+	samp, err := NewGibbsCollapsed(gen, mod.Clone())
 	assert.NoError(err)
 	assert.False(samp.baseSampler.pgm.Vars[0].Collapsed)
+	assert.False(samp.baseSampler.pgm.Vars[1].Collapsed)
+	assert.False(samp.baseSampler.pgm.Vars[2].Collapsed)
 
-	oneSample := make([]int, 1)
-	counts := make([]int, 2)
-	for i := 0; i < 4096; i++ {
-		idx, err := samp.Sample(oneSample)
-		assert.Equal(0, idx)
+	for i := range mod.Vars {
+		samp2, err := NewGibbsCollapsed(gen, mod.Clone())
 		assert.NoError(err)
-		if err != nil {
-			break
+		v, err := samp2.Collapse(i)
+		assert.NoError(err)
+		assert.Equal(i, v.ID)
+		for j, vCheck := range samp2.baseSampler.pgm.Vars {
+			if j != i {
+				assert.False(vCheck.Collapsed)
+			} else {
+				assert.True(vCheck.Collapsed)
+			}
 		}
-		counts[oneSample[0]]++
+
+		fmt.Printf("Collapsed Marginal v[%d]%v: %+v\n", i, v.Name, v.Marginal)
+		assert.InEpsilon(0.50, v.Marginal[0], 1e-5)
+		assert.InEpsilon(0.50, v.Marginal[1], 1e-5)
 	}
-
-	// Technically just highly unlikely...
-	assert.True(counts[0] > 0)
-	assert.True(counts[1] > 0)
-
-	pgm := samp.baseSampler.pgm
-
-	v := pgm.Vars[0]
-	v.Marginal[0] = float64(counts[0]) / 4096.0
-	v.Marginal[1] = float64(counts[1]) / 4096.0
-	fmt.Printf("Sampled Marginal: %+v\n", v.Marginal)
-	assert.InEpsilon(0.25, pgm.Vars[0].Marginal[0], 0.2)
-	assert.InEpsilon(0.75, pgm.Vars[0].Marginal[1], 0.2)
-
-	v, err = samp.Collapse(0)
-	assert.Equal(0, v.ID)
-	assert.NoError(err)
-
-	// Keep this in once we're fixed
-	fmt.Printf("Collapsed Marginal: %+v\n", v.Marginal)
-	assert.InEpsilon(0.25, pgm.Vars[0].Marginal[0], 0.008)
-	assert.InEpsilon(0.75, pgm.Vars[0].Marginal[1], 0.008)
 }
 
 // Test that we can actually sample from a simple 1-var dist
@@ -116,15 +103,11 @@ func TestFullGibbsCollapsed(t *testing.T) {
 	assert.True(v.Collapsed)
 	assert.Equal(2, collCount())
 
-	v, err = samp.Collapse(-1)
-	assert.NoError(err)
-	assert.True(v.Collapsed)
-	assert.Equal(3, collCount())
-
+	// Our current checking requires that at least one variable remain uncollapsed
 	v, err = samp.Collapse(-1)
 	assert.Error(err)
 	assert.Nil(v)
-	assert.Equal(3, collCount())
+	assert.Equal(2, collCount())
 }
 
 var colModIts int

@@ -11,14 +11,6 @@ import (
 
 // TODO: write an output MAR file after end of run (like merlin)
 
-// TODO: After talking to Deepak, we need to alter our collapsing so that the
-// collapsed variable is NOT in the new function. That ALSO means that we need
-// to NOT select the collapsed variable for sampling. And somehow not error out
-// on a variable with no functions.
-
-// TODO: after above, insure that unit tests check that collapsed variables
-// have no functions mentioning them
-
 // varSet is a set of variables, used to track the neighborhood for a variable
 type varSet map[int]bool
 
@@ -70,6 +62,15 @@ func (g *GibbsCollapsed) FunctionsChanged() error {
 		for _, f := range funcs {
 			for _, v := range f.Vars {
 				neighbors[idx][v.ID] = true
+			}
+		}
+	}
+
+	// Make sure our collapsed variable really ARE collapsed
+	for i, v := range base.pgm.Vars {
+		if v.Collapsed {
+			if len(neighbors[i]) > 0 {
+				return errors.Errorf("Var[%d] %v is collapsed by has a blanket", i, v)
 			}
 		}
 	}
@@ -145,23 +146,36 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 	// index in blanket (and varState defined below) from a variable ID via
 	// blanketXref. We also take this chance to grab the collapsing variable's
 	// index since we'll want want to know it value when we're iterating over
-	// the entire variable space below.
+	// the entire variable space below. Since our new function's domain is just
+	// the blanket less the collapsed variable, we also go ahead and create
+	// that array as well.
 	blanket := make([]*model.Variable, 0, len(pgm.Vars))
 	blanketXref := make(map[int]int)
 	collIdx := -1
+	newFuncVars := make([]*model.Variable, 0, len(pgm.Vars))
 	for vi, inBlanket := range g.varNeighbors[varIdx] {
-		if inBlanket {
-			v := pgm.Vars[vi]
-			blanket = append(blanket, pgm.Vars[vi])
-			blanketXref[v.ID] = len(blanket) - 1
-			if collVar.ID == v.ID {
-				collIdx = len(blanket) - 1
-			}
+		if !inBlanket {
+			continue
+		}
+
+		v := pgm.Vars[vi]
+		blanket = append(blanket, v)
+		blanketXref[v.ID] = len(blanket) - 1
+		if collVar.ID == v.ID {
+			collIdx = len(blanket) - 1 // collapsed: save index
+		} else {
+			newFuncVars = append(newFuncVars, v) // not collapsed: going in new function
 		}
 	}
 
 	if collIdx < 0 {
 		return nil, errors.Errorf("Collapsing variable not in its own blanket")
+	}
+	if len(newFuncVars) != len(blanket)-1 {
+		return nil, errors.Errorf("New function size %d != %d", len(newFuncVars), len(blanket)-1)
+	}
+	if len(newFuncVars) < 1 {
+		return nil, errors.Errorf("New function would have 0 variables")
 	}
 
 	// Get all the functions we'll need to collapse and pre-create a cross-ref.
@@ -177,7 +191,7 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 
 	// We will be creating a new function from our collapsing work
 	// Note that we also override the name
-	postFunc, err := model.NewFunction(len(pgm.Funcs), blanket)
+	postFunc, err := model.NewFunction(len(pgm.Funcs), newFuncVars)
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +243,14 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 		// that we need to convert from log space first.
 		funcResult = math.Exp(funcResult)
 		collVar.Marginal[marginalVal] += funcResult
-		postFunc.AddValue(varState, funcResult)
+
+		// Now we need to update our new function
+		callVals := callValBuffer[:len(newFuncVars)]
+		for i, v := range newFuncVars {
+			stateIdx := blanketXref[v.ID]
+			callVals[i] = varState[stateIdx]
+		}
+		postFunc.AddValue(callVals, funcResult)
 
 		// Time for next variable state
 		if !varIter.Next() {
@@ -301,7 +322,7 @@ func (g *GibbsCollapsed) Sample(s []int) (int, error) {
 	}
 
 	// Note excludeCollapsed=True
-	varIdx, err := base.varSelector.VarSample(pgm.Vars, false)
+	varIdx, err := base.varSelector.VarSample(pgm.Vars, true)
 	if err != nil {
 		return -1, err
 	}
