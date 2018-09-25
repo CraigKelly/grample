@@ -8,13 +8,13 @@ import sys
 try:
     import colorclass
 except ImportError:
-    print("color.py requires colorclass -- ATTEMPTING INSTALL", file=sys.stderr)
+    print('color.py requires colorclass -- ATTEMPTING INSTALL', file=sys.stderr)
     import subprocess
     subprocess.run('python3 -m pip install --user --upgrade colorclass', shell=True, check=True)
     import colorclass
 
 # Handle Windows vs everyone else
-if os.name == "nt":
+if os.name == 'nt':
     colorclass.Windows.enable(auto_colors=True)
 else:
     colorclass.set_dark_background()
@@ -36,7 +36,7 @@ def line_process(line):
         col, *rest = rest
     else:
         col = ' '
-    
+
     fname = clr('{autocyan}{u}%s{/u}{/autocyan}' % fname)
     line = clr('{autogreen}%s{/autogreen}' % line)
     col = clr('{autogreen}%s{/autogreen}' % col)
@@ -52,5 +52,5 @@ def main():
         sys.stdout.write('\n')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

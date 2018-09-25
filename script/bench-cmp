@@ -8,7 +8,7 @@ oldf=bench1.out
 newf=bench2.out
 
 function title() {
-    echo -e "${cyan}${underline}" $* "${normal}"
+    echo -e "${cyan}${underline}" "$@" "${normal}"
 }
 
 function bench() {

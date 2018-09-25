@@ -4,6 +4,7 @@ import csv
 import json
 import sys
 
+
 def valid_lines():
     started = False
     for line in sys.stdin:
@@ -22,6 +23,7 @@ def valid_lines():
             return
 
         yield line
+
 
 def main():
     cols = []
@@ -60,6 +62,7 @@ def main():
     wr.writeheader()
     wr.writerows(rows)
     sys.stdout.flush()
+
 
 if __name__ == '__main__':
     main()
