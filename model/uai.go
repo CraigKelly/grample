@@ -14,9 +14,16 @@ type UAIReader struct {
 }
 
 // Preprocessor for UAI files: remove lines that are blank or comments. Return
-// the new buffer and the count of "real" lines found.
-func uaiPreprocess(data []byte) (string, int) {
+// the new buffer and the count of "real" lines found. If reqPrefix is
+// specified, then a line starting with reqPrefix must be present AND all text
+// before the first occurrence of reqPrefix will be dropped.
+func uaiPreprocess(data []byte, reqPrefix string) (string, int) {
 	lines := strings.Split(string(data), "\n")
+
+	startFound := false
+	if len(reqPrefix) < 1 {
+		startFound = true // No req prefix specified
+	}
 
 	newPos := 0
 	for i, ln := range lines {
@@ -24,6 +31,14 @@ func uaiPreprocess(data []byte) (string, int) {
 		if len(ln) < 1 || ln[0] == 'c' {
 			lines[i] = "" // Empty or comment: skip
 			continue
+		}
+
+		if !startFound {
+			if strings.HasPrefix(ln, reqPrefix) {
+				startFound = true
+			} else {
+				continue // still looking...
+			}
 		}
 
 		// Rewrite update line and update insert point
@@ -43,7 +58,7 @@ func (r UAIReader) ReadModel(data []byte) (*Model, error) {
 	}
 
 	// A minimal model will have 6 fields
-	text, lineCount := uaiPreprocess(data)
+	text, lineCount := uaiPreprocess(data, "")
 	if lineCount < 1 {
 		return nil, errors.Errorf("No lines found in file")
 	}
@@ -166,7 +181,7 @@ func (r UAIReader) ReadModel(data []byte) (*Model, error) {
 // ApplyEvidence is part of the reader interface - read the evidence file and
 // apply to the model.
 func (r UAIReader) ApplyEvidence(data []byte, m *Model) error {
-	text, lineCount := uaiPreprocess(data)
+	text, lineCount := uaiPreprocess(data, "")
 	if lineCount < 1 {
 		return errors.Errorf("Invalid data buffer: there is no data")
 	} else if lineCount > 2 {
@@ -242,7 +257,10 @@ func (r UAIReader) ReadMargSolution(data []byte) (*Solution, error) {
 	}
 
 	// A minimal solution will have 3 fields
-	text, lineCount := uaiPreprocess(data)
+    // Note that we only read one MAR solution, *BUT* we'll skip anything
+    // before it. This is mainly useful for Merlin MAR files because Merlin
+    // includes a PR solution section before the MAR section.
+	text, lineCount := uaiPreprocess(data, "MAR")
 	if lineCount < 1 {
 		return nil, errors.Errorf("No lines in file")
 	}

@@ -31,8 +31,9 @@ const PASCALExample = `MARKOV
 func TestUAIPreproc(t *testing.T) {
 	assert := assert.New(t)
 
+	pre := ""
 	assertPreproc := func(lineCount int, correct string, buf string) {
-		s, c := uaiPreprocess([]byte(buf))
+		s, c := uaiPreprocess([]byte(buf), pre)
 		assert.Equal(lineCount, c)
 		assert.Equal(correct, s)
 	}
@@ -49,6 +50,24 @@ func TestUAIPreproc(t *testing.T) {
 	assertPreproc(2, "hello\nworld", "hello\nworld\n")
 	assertPreproc(2, "hello\nworld", "\nhello\n\nworld\n")
 	assertPreproc(2, "hello\nworld", "c comment\n\nhello\nc again\nworld\nc last\n\n")
+
+	// Test prefix
+	pre = "abc"
+
+	assertPreproc(0, "", "")
+	assertPreproc(0, "", "\n\n\n")
+	assertPreproc(0, "", "c\nc\ncnope")
+
+	assertPreproc(1, "abc", " abc ")
+	assertPreproc(1, "abc", "abc\nc comment\n")
+	assertPreproc(1, "abc", "\n\n\n\nc comment\n\n\nabc")
+
+	pre = "wor"
+
+	assertPreproc(2, "world\nabc", "hello\nworld\nabc")
+	assertPreproc(2, "world\nabc", "hello\nworld\nabc")
+	assertPreproc(2, "world\nabc", "\nhello\n\nworld\nabc")
+	assertPreproc(2, "world\nabc", "c comment\n\nhello\nc again\nworld\nabc\nc last\n\n")
 }
 
 // Test reading the example file at http://www.cs.huji.ac.il/project/PASCAL/fileFormat.php#model
