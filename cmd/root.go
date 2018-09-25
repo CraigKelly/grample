@@ -96,20 +96,29 @@ func (s *startupParams) Setup() error {
 	return nil
 }
 
+func (s *startupParams) dump(out *log.Logger) {
+	out.Printf("Verbose:        %v\n", s.verbose)
+	out.Printf("Model:          %s\n", s.uaiFile)
+	out.Printf("Apply Evidence: %v\n", s.useEvidence)
+	out.Printf("Solution:       %v\n", s.solFile)
+	out.Printf("Sampler:        %s\n", s.samplerName)
+	out.Printf("Burn In:        %12d\n", s.burnIn)
+	out.Printf("Converge Win:   %12d\n", s.convergeWindow)
+	out.Printf("Num Base Chain: %12d\n", s.baseCount)
+	out.Printf("Max Iters:      %12d\n", s.maxIters)
+	out.Printf("Max Secs:       %12d\n", s.maxSecs)
+	out.Printf("Rnd Seed:       %12d\n", s.randomSeed)
+	out.Printf("Monitor Addr:   %s\n", s.monitorAddr)
+}
+
 // Report just writes commands - must be called after Setup
 func (s *startupParams) Report() {
-	s.out.Printf("Verbose:        %v\n", s.verbose)
-	s.out.Printf("Model:          %s\n", s.uaiFile)
-	s.out.Printf("Apply Evidence: %v\n", s.useEvidence)
-	s.out.Printf("Solution:       %v\n", s.solFile)
-	s.out.Printf("Sampler:        %s\n", s.samplerName)
-	s.out.Printf("Burn In:        %12d\n", s.burnIn)
-	s.out.Printf("Converge Win:   %12d\n", s.convergeWindow)
-	s.out.Printf("Num Base Chain: %12d\n", s.baseCount)
-	s.out.Printf("Max Iters:      %12d\n", s.maxIters)
-	s.out.Printf("Max Secs:       %12d\n", s.maxSecs)
-	s.out.Printf("Rnd Seed:       %12d\n", s.randomSeed)
-	s.out.Printf("Monitor Addr:   %s\n", s.monitorAddr)
+	s.dump(s.out)
+}
+
+// Trace writes a report to the trace output
+func (s *startupParams) Trace() {
+	s.dump(s.trace)
 }
 
 // Help text for root command
@@ -471,6 +480,9 @@ func modelMarginals(sp *startupParams) error {
 			sp.verb.Printf("Variable[%d] %s (Card:%d, %+v) %+v\n", v.ID, v.Name, v.Card, v.State, v.Marginal)
 		}
 	}
+
+	sp.trace.Printf("// OPERATING PARAMS\n")
+	sp.Trace()
 
 	sp.trace.Printf("// ENTIRE MODEL\n")
 	sp.traceJ.SetIndent("", "  ")
