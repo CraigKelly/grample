@@ -20,6 +20,8 @@ import (
 	"github.com/CraigKelly/grample/sampler"
 )
 
+// TODO: need to be able to read .merlin.MAR files and output error metrics as a baseline
+
 // We want to cheat as little as possible, so we grab the start time ASAP
 var startTime = time.Now()
 
