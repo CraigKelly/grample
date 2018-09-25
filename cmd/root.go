@@ -453,13 +453,25 @@ func modelMarginals(sp *startupParams) error {
 	if err != nil {
 		return errors.Wrapf(err, "Error getting final JS Convergence")
 	}
+	maxaeConverge, err := sampler.ChainConvergence(chains, model.MaxAbsDiff)
+	if err != nil {
+		return errors.Wrapf(err, "Error getting final MaxAbsDiff Convergence")
+	}
+	avgaeConverge, err := sampler.ChainConvergence(chains, model.MeanAbsDiff)
+	if err != nil {
+		return errors.Wrapf(err, "Error getting final MeanAbsDiff Convergence")
+	}
 
 	for i, v := range finalVars {
 		v.State["Hell-Convergence"] = hellConverge[i]
 		v.State["JS-Convergence"] = jsConverge[i]
+		v.State["MaxAD-Convergence"] = maxaeConverge[i]
+		v.State["AvgAD-Convergence"] = avgaeConverge[i]
 		if sp.solFile {
 			v.State["Hell-Error"] = model.HellingerDiff(v, sol.Vars[i])
 			v.State["JS-Error"] = model.JSDivergence(v, sol.Vars[i])
+			v.State["MaxAD-Error"] = model.MaxAbsDiff(v, sol.Vars[i])
+			v.State["AvgAD-Error"] = model.MeanAbsDiff(v, sol.Vars[i])
 		}
 	}
 
