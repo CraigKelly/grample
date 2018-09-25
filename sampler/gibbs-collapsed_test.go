@@ -139,6 +139,13 @@ func runColBench(b *testing.B, m *model.Model) {
 	if err != nil {
 		b.Fatalf("Could not create Gibbs-Simple sampler %v", err)
 	}
+	// Collapse about half the variables if possible
+	for i := 0; i < len(m.Vars)/2; i++ {
+		_, err := samp.Collapse(-1)
+		if err != nil {
+			b.Fatalf("Could not collapse var on try %d. Error: %v", i, err)
+		}
+	}
 
 	oneSample := make([]int, len(m.Vars))
 
