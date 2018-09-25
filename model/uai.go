@@ -257,9 +257,9 @@ func (r UAIReader) ReadMargSolution(data []byte) (*Solution, error) {
 	}
 
 	// A minimal solution will have 3 fields
-    // Note that we only read one MAR solution, *BUT* we'll skip anything
-    // before it. This is mainly useful for Merlin MAR files because Merlin
-    // includes a PR solution section before the MAR section.
+	// Note that we only read one MAR solution, *BUT* we'll skip anything
+	// before it. This is mainly useful for Merlin MAR files because Merlin
+	// includes a PR solution section before the MAR section.
 	text, lineCount := uaiPreprocess(data, "MAR")
 	if lineCount < 1 {
 		return nil, errors.Errorf("No lines in file")

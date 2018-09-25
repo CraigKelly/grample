@@ -442,6 +442,27 @@ func modelMarginals(sp *startupParams) error {
 				v.State[ky] = s.Marginal[c]
 			}
 		}
+
+		// Go ahead and include Merlin info if we can find a merlin file
+		merlinFilename := sp.uaiFile + ".merlin.MAR"
+		if _, err := os.Stat(merlinFilename); !os.IsNotExist(err) {
+			merlin, re := model.NewSolutionFromFile(reader, merlinFilename)
+			if re != nil {
+				return errors.Wrapf(re, "Found merlin MAR file but could not read it")
+			}
+
+			merlinError, re := merlin.Error(sol.Vars)
+			if re != nil {
+				return errors.Wrapf(re, "Error calculating merlin error")
+			}
+			errorReport(sp, "MERLIN SCORE", merlinError, false)
+
+			merlinError, re = merlin.Error(finalVars)
+			if re != nil {
+				return errors.Wrapf(re, "Error calculating merlin error")
+			}
+			errorReport(sp, "OUR SCORE USING MERLIN AS SOLUTION", merlinError, false)
+		}
 	}
 
 	// Get final convergence scores (and individual errors)

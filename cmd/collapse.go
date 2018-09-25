@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"math"
+	"os"
 
 	"github.com/pkg/errors"
 
@@ -17,6 +18,26 @@ func CollapsedIteration(sp *startupParams) error {
 	var mod *model.Model
 	var sol *model.Solution
 	var err error
+
+	// We do this a lot, so create a little helper for write error metrics
+	oneErrorLog := func(v1 *model.Variable, v2 *model.Variable, prefix string) error {
+		score, err := model.NewErrorSuite(
+			[]*model.Variable{v1},
+			[]*model.Variable{v2},
+		)
+		if err != nil {
+			return err
+		}
+		sp.out.Printf(
+			"%s NLog | MeanAE:%7.3f MaxAE:%7.3f Hel:%7.3f JSD:%7.3f\n",
+			prefix,
+			-math.Log2(score.MaxMeanAbsError),
+			-math.Log2(score.MaxMaxAbsError),
+			-math.Log2(score.MaxHellinger),
+			-math.Log2(score.MaxJSDiverge),
+		)
+		return nil
+	}
 
 	// Read model from file
 	sp.out.Printf("Reading model from %s\n", sp.uaiFile)
@@ -42,6 +63,24 @@ func CollapsedIteration(sp *startupParams) error {
 		return errors.Wrapf(err, "Error calculating init score on startup")
 	}
 	errorReport(sp, "ASSUME ALL MARGINALS ARE UNIFORM", score, false)
+
+	merlinFilename := sp.uaiFile + ".merlin.MAR"
+	var merlin *model.Solution
+	if _, err := os.Stat(merlinFilename); !os.IsNotExist(err) {
+		merlin, err = model.NewSolutionFromFile(reader, merlinFilename)
+		if err != nil {
+			return errors.Wrapf(err, "Found merlin MAR file but could not read it")
+		}
+	}
+
+	var merlinError *model.ErrorSuite
+	if merlin != nil {
+		merlinError, err = merlin.Error(mod.Vars)
+		if err != nil {
+			return errors.Wrapf(err, "Error calculating merlin error on startup")
+		}
+		errorReport(sp, "MERLIN SCORE", merlinError, false)
+	}
 
 	gen, err := rand.NewGenerator(sp.randomSeed)
 	if err != nil {
@@ -81,21 +120,29 @@ func CollapsedIteration(sp *startupParams) error {
 		sp.out.Printf("COLLAPSED: %8.5f\n", colVar.Marginal)
 		sp.out.Printf("SOLUTION : %8.5f\n", solVar.Marginal)
 
-		score, err := model.NewErrorSuite(
-			[]*model.Variable{solVar},
-			[]*model.Variable{colVar},
-		)
+		err = oneErrorLog(colVar, solVar, "Col Vs Sol")
 		if err != nil {
 			return err
 		}
 
-		sp.out.Printf(
-			"NLog | MeanAE:%.3f MaxAE:%.3f Hel:%.3f JSD:%.3f\n",
-			-math.Log2(score.MaxMeanAbsError),
-			-math.Log2(score.MaxMaxAbsError),
-			-math.Log2(score.MaxHellinger),
-			-math.Log2(score.MaxJSDiverge),
-		)
+		if merlin != nil {
+			merVar := merlin.Vars[i]
+			if merVar.ID != colVar.ID {
+				return errors.Errorf("Merlin var mismatch")
+			}
+
+			sp.out.Printf("MERLIN   : %8.5f\n", merVar.Marginal)
+
+			err = oneErrorLog(merVar, solVar, "Mer vs Sol")
+			if err != nil {
+				return err
+			}
+
+			err = oneErrorLog(merVar, colVar, "Mer vs COL")
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	sp.out.Printf("--------------------------------------------------\n")
