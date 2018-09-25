@@ -429,9 +429,28 @@ func modelMarginals(sp *startupParams) error {
 		for i, v := range finalVars {
 			s := sol.Vars[i]
 			for c := 0; c < v.Card; c++ {
-				ky := fmt.Sprintf("MAR[%d]", c)
+				ky := fmt.Sprintf("SOL-MAR[%d]", c)
 				v.State[ky] = s.Marginal[c]
 			}
+		}
+	}
+
+	// Get final convergence scores (and individual errors)
+	hellConverge, err := sampler.ChainConvergence(chains, model.HellingerDiff)
+	if err != nil {
+		return errors.Wrapf(err, "Error getting final Hellinger Convergence")
+	}
+	jsConverge, err := sampler.ChainConvergence(chains, model.JSDivergence)
+	if err != nil {
+		return errors.Wrapf(err, "Error getting final JS Convergence")
+	}
+
+	for i, v := range finalVars {
+		v.State["Hell-Convergence"] = hellConverge[i]
+		v.State["JS-Convergence"] = jsConverge[i]
+		if sp.solFile {
+			v.State["Hell-Error"] = model.HellingerDiff(v, sol.Vars[i])
+			v.State["JS-Error"] = model.JSDivergence(v, sol.Vars[i])
 		}
 	}
 
