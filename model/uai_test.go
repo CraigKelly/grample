@@ -123,18 +123,18 @@ func TestUAILargeFile(t *testing.T) {
 	assert := assert.New(t)
 
 	r := UAIReader{}
-	m, err := NewModelFromFile(r, "../res/relational_1.uai", false)
+	m, err := NewModelFromFile(r, "../res/dv-rel_1.uai", false)
 	assert.NoError(err)
 	assert.NoError(m.Check())
 
 	assert.Equal(MARKOV, m.Type)
 
-	assert.Equal(500, len(m.Vars))
-	assert.Equal(62500, len(m.Funcs))
+	assert.Equal(120, len(m.Vars))
+	assert.Equal(40, len(m.Funcs))
 
-	val, err := m.Funcs[62499].Eval([]int{1, 1}) // Last val of last func
+	val, err := m.Funcs[39].Eval([]int{1, 1, 1}) // Last val of last func
 	assert.NoError(err)
-	assert.InEpsilon(val, 1.00752819544, 1e-12)
+	assert.InEpsilon(val, 2.038, 1e-12)
 }
 
 // Test reading a solution file
