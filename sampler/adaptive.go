@@ -65,8 +65,16 @@ func (c *ConvergenceSampler) Adapt(chains []*Chain) ([]*Chain, error) {
 		return chains, nil
 	}
 
-	// Build an array of non-collapsed, non-fixed variables - to do this we
-	// need to merge the chains
+	// Go ahead and create the collapsed sampler we'll need - note this gets us
+	// blanket sizes as well.
+	modClone := c.BaseModel.Clone()
+	samp, err := NewGibbsCollapsed(c.Gen, modClone)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build an array of non-collapsed, non-fixed variables that have a
+	// resonable-sized neighborhood. To do this we need to merge the chains
 	mergedVars, err := MergeChains(chains)
 	if err != nil {
 		return nil, err
@@ -74,7 +82,7 @@ func (c *ConvergenceSampler) Adapt(chains []*Chain) ([]*Chain, error) {
 
 	vars := make([]*model.Variable, 0, len(mergedVars))
 	for _, v := range mergedVars {
-		if v.FixedVal < 0 && !v.Collapsed {
+		if v.FixedVal < 0 && !v.Collapsed && samp.BlanketSize(v) <= NeighborVarMax {
 			vars = append(vars, v)
 		}
 	}
@@ -107,14 +115,7 @@ func (c *ConvergenceSampler) Adapt(chains []*Chain) ([]*Chain, error) {
 		varIdx = vars[len(vars)-1].ID
 	}
 
-	// Now we know enough to create a new chain
-	modClone := c.BaseModel.Clone()
-
-	samp, err := NewGibbsCollapsed(c.Gen, modClone)
-	if err != nil {
-		return nil, err
-	}
-
+	// Now we know enough to collapse our variable and create a new chain
 	_, err = samp.Collapse(varIdx)
 	if err != nil {
 		return nil, err

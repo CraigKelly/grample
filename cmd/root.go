@@ -454,6 +454,9 @@ func modelMarginals(sp *startupParams) error {
 		if keepWorking && keepAdapting {
 			preCount := len(chains)
 			chains, err = adapt.Adapt(chains)
+			if err != nil {
+				return err
+			}
 			postCount := len(chains)
 
 			if postCount != preCount {
