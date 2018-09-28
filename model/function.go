@@ -56,6 +56,8 @@ func calcTabSize(vars []*Variable) int {
 	return ts
 }
 
+const maxTabSize = 1 << 22
+
 // NewFunction creates a function from an index and a list of variables
 func NewFunction(index int, vars []*Variable) (*Function, error) {
 	if index < 0 {
@@ -71,6 +73,9 @@ func NewFunction(index int, vars []*Variable) (*Function, error) {
 	tabSize := calcTabSize(vars)
 	if tabSize < 1 {
 		return nil, errors.Errorf("Function %s is invalid - could not calculate table size", name)
+	}
+	if tabSize > maxTabSize {
+		return nil, errors.Errorf("Function over %d vars has size %d (> %d)", len(vars), tabSize, maxTabSize)
 	}
 
 	f := &Function{
