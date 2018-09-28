@@ -365,14 +365,14 @@ func modelMarginals(sp *startupParams) error {
 		chains[idx] = ch
 		sp.mon.BaseChains.Add(1)
 		sp.mon.TotalChains.Add(1)
-		// TODO: update TotalChains after adapt step in loop below
 	}
 
 	// Chains created: now we can select our adaptive strategy
 	var adapt sampler.AdaptiveSampler
 	if strings.ToLower(sp.samplerName) == "adaptive" {
-		// Adapt based on convergence metric
-		adapt, err = sampler.NewConvergenceSampler(mod.Clone())
+		// Adapt based on convergence metric: we currently just use the the
+		// samplers default Measure for convergence.
+		adapt, err = sampler.NewConvergenceSampler(gen, mod.Clone(), nil)
 	} else {
 		// Everything just skips adaptation
 		adapt, err = sampler.NewIdentitySampler()
@@ -453,6 +453,7 @@ func modelMarginals(sp *startupParams) error {
 		}
 		if keepWorking && keepAdapting {
 			chains, err = adapt.Adapt(chains)
+			sp.mon.TotalChains.Set(int64(len(chains)))
 		}
 	}
 
@@ -508,19 +509,19 @@ func modelMarginals(sp *startupParams) error {
 	}
 
 	// Get final convergence scores (and individual errors)
-	hellConverge, err := sampler.ChainConvergence(chains, model.HellingerDiff)
+	hellConverge, err := sampler.ChainConvergence(chains, model.HellingerDiff, finalVars)
 	if err != nil {
 		return errors.Wrapf(err, "Error getting final Hellinger Convergence")
 	}
-	jsConverge, err := sampler.ChainConvergence(chains, model.JSDivergence)
+	jsConverge, err := sampler.ChainConvergence(chains, model.JSDivergence, finalVars)
 	if err != nil {
 		return errors.Wrapf(err, "Error getting final JS Convergence")
 	}
-	maxaeConverge, err := sampler.ChainConvergence(chains, model.MaxAbsDiff)
+	maxaeConverge, err := sampler.ChainConvergence(chains, model.MaxAbsDiff, finalVars)
 	if err != nil {
 		return errors.Wrapf(err, "Error getting final MaxAbsDiff Convergence")
 	}
-	avgaeConverge, err := sampler.ChainConvergence(chains, model.MeanAbsDiff)
+	avgaeConverge, err := sampler.ChainConvergence(chains, model.MeanAbsDiff, finalVars)
 	if err != nil {
 		return errors.Wrapf(err, "Error getting final MeanAbsDiff Convergence")
 	}

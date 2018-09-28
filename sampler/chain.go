@@ -26,16 +26,22 @@ type Measure func(v1 *model.Variable, v2 *model.Variable) float64
 // ChainConvergence returns an array of floats that corresponds to the array of
 // variables in the chains. Each float is a measure of the current convergence
 // of the specified variable, where values close to 1.0 are better. Currently
-// we return 1.0 for any collapsed variable
-func ChainConvergence(chains []*Chain, distFunc Measure) ([]float64, error) {
+// we return 1.0 for any collapsed variable. Note that as an optimization,
+// this function will accept variables that are pre-merged. If an empty array
+// is passed, variables will be merged automatically
+func ChainConvergence(chains []*Chain, distFunc Measure, mergedVars []*model.Variable) ([]float64, error) {
 	if len(chains) < 2 {
 		return nil, errors.Errorf("Convergence requires at least 2 chains")
 	}
 
+	var err error
+
 	// We need a merged chain so that we have an overall distribution
-	mergedVars, err := MergeChains(chains)
-	if err != nil {
-		return nil, err
+	if len(mergedVars) < 1 {
+		mergedVars, err = MergeChains(chains)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// our actual values that we'll need
@@ -152,10 +158,12 @@ func NewChain(mod *model.Model, samp FullSampler, cw int, burnIn int64) (*Chain,
 		LastSample:        make([]int, len(mod.Vars)),
 	}
 
+	// Create all the buffers we need
 	for i := range ch.ChainHistory {
 		ch.ChainHistory[i] = buffer.NewCircularInt(cw)
 	}
 
+	// Perform requested burn-in
 	for i := int64(0); i < burnIn; i++ {
 		err := ch.oneSample(false)
 		if err != nil {
