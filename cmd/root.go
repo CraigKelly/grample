@@ -20,6 +20,8 @@ import (
 	"github.com/CraigKelly/grample/sampler"
 )
 
+// TODO: actually test new code, ESP adaptive sampler
+
 // We want to cheat as little as possible, so we grab the start time ASAP
 var startTime = time.Now()
 
@@ -177,7 +179,7 @@ func Execute() {
 	pf.StringVarP(&sp.uaiFile, "model", "m", "", "UAI model file to read")
 	pf.BoolVarP(&sp.useEvidence, "evidence", "d", false, "Apply evidence from evidence file (name inferred from model file")
 	pf.BoolVarP(&sp.solFile, "solution", "o", false, "Use UAI MAR solution file to score (name inferred from model file)")
-	pf.StringVarP(&sp.samplerName, "sampler", "s", "", "Name of sampler to use (simple, collapsed)")
+	pf.StringVarP(&sp.samplerName, "sampler", "s", "", "Name of sampler to use (simple, collapsed, adaptive)")
 	pf.Int64VarP(&sp.burnIn, "burnin", "b", -1, "Burn-In iteration count - if < 0, will use 2000*n (n= # vars)")
 	pf.Int64VarP(&sp.convergeWindow, "cwin", "w", -1, "Sample window size for measuring convergence, if <= 0 will use burnin size")
 	pf.Int64VarP(&sp.baseCount, "chains", "c", -1, "Number of base/starting chains, if <= 0 will use number of CPUs")
@@ -315,11 +317,13 @@ func modelMarginals(sp *startupParams) error {
 	sp.out.Printf("Creating chains and performing burn-in (%d)\n", sp.burnIn)
 
 	chains := make([]*sampler.Chain, sp.baseCount)
+
 	for idx := range chains {
 		sp.out.Printf(" ... Chain %3d out of %3d\n", idx+1, sp.baseCount)
 		modCopy := mod.Clone()
 
 		var samp sampler.FullSampler
+
 		if strings.ToLower(sp.samplerName) == "simple" {
 			samp, err = sampler.NewGibbsSimple(gen, modCopy)
 			if err != nil {
@@ -337,6 +341,12 @@ func modelMarginals(sp *startupParams) error {
 			sp.out.Printf("        - Collaped variable %v:%v\n", colVar.ID, colVar.Name)
 			sp.out.Printf("MARGINAL: %+v\n", colVar.Marginal)
 			samp = coll
+		} else if strings.ToLower(sp.samplerName) == "adaptive" {
+			coll, err := sampler.NewGibbsCollapsed(gen, modCopy)
+			if err != nil {
+				return errors.Wrapf(err, "Could not create %s", sp.samplerName)
+			}
+			samp = coll
 		} else {
 			return errors.Errorf("Unknown Sampler: %s", sp.samplerName)
 		}
@@ -351,6 +361,19 @@ func modelMarginals(sp *startupParams) error {
 		sp.mon.TotalChains.Add(1)
 	}
 
+	// Chains created: now we can select our adaptive strategy
+	var adapt sampler.AdaptiveSampler
+	if strings.ToLower(sp.samplerName) == "adaptive" {
+		// Adapt based on convergence metric
+		adapt, err = sampler.NewConvergenceSampler(mod.Clone())
+	} else {
+		// Everything just skips adaptation
+		adapt, err = sampler.NewIdentitySampler()
+	}
+	if err != nil {
+		return errors.Wrapf(err, "Could not create adaptation strategy for %s", sp.samplerName)
+	}
+
 	// Trace file warning - it can get huge in verbose mode
 	if len(sp.traceFile) > 0 && sp.verbose {
 		sp.out.Printf("WARNING: verbose is set, every accepted sample will be written to trace file %s\n", sp.traceFile)
@@ -363,6 +386,9 @@ func modelMarginals(sp *startupParams) error {
 	stopTime := startTime.Add(time.Duration(sp.maxSecs) * time.Second)
 	untilStatus := time.Duration(5) * time.Second
 	nextStatus := startTime.Add(untilStatus / 2)
+
+	keepAdapting := true
+	noAdaptTime := startTime.Add(time.Duration(sp.maxSecs/2) * time.Second)
 
 	wg := sync.WaitGroup{}
 
@@ -409,6 +435,17 @@ func modelMarginals(sp *startupParams) error {
 				}
 				errorReport(sp, "", score, true)
 			}
+		}
+
+		// Adaptive update (if we're still updating)
+		if keepAdapting {
+			if now.After(noAdaptTime) {
+				sp.out.Printf("STOPPING ADAPTATION\n")
+				keepAdapting = false
+			}
+		}
+		if keepWorking && keepAdapting {
+			chains, err = adapt.Adapt(chains)
 		}
 	}
 

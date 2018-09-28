@@ -17,6 +17,13 @@ type FullSampler interface {
 	Sample([]int) (int, error)
 }
 
+// An AdaptiveSampler accepts a list of current chains and returns a new list
+// ready to advance. The simplest AdaptiveSampler just returns the chains
+// passed and is equivalent to whatever base sampler is currently in use.
+type AdaptiveSampler interface {
+	Adapt(chains []*Chain) ([]*Chain, error)
+}
+
 // A VarSampler selects from an array of variables with some probability.
 // Currently used yo select the next variable to sample in a chain in our Gibbs
 // sampler. The selection routine should exclude variables with a Fixed Value
