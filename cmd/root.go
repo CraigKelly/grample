@@ -452,8 +452,14 @@ func modelMarginals(sp *startupParams) error {
 			}
 		}
 		if keepWorking && keepAdapting {
+			preCount := len(chains)
 			chains, err = adapt.Adapt(chains)
-			sp.mon.TotalChains.Set(int64(len(chains)))
+			postCount := len(chains)
+
+			if postCount != preCount {
+				sp.mon.TotalChains.Set(int64(postCount))
+				sp.out.Printf("ADAPT: %d Chains (was %d)\n", postCount, preCount)
+			}
 		}
 	}
 

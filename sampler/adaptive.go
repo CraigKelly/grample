@@ -28,11 +28,10 @@ func (i *IdentitySampler) Adapt(chains []*Chain) ([]*Chain, error) {
 // ConvergenceSampler creates new collapsed chains based on convergence
 // metrics.
 type ConvergenceSampler struct {
-	BaseModel     *model.Model
-	NewChainCount int
-	MaxChains     int
-	DistFunc      Measure
-	Gen           *rand.Generator
+	BaseModel *model.Model
+	DistFunc  Measure
+	Gen       *rand.Generator
+	MaxChains int
 }
 
 // NewConvergenceSampler create a new IdentitySampler.
@@ -45,14 +44,11 @@ func NewConvergenceSampler(gen *rand.Generator, m *model.Model, d Measure) (*Con
 		d = model.HellingerDiff
 	}
 
-	// TODO: chain count and max chains should be parameterized AND on the
-	//       command line
 	s := &ConvergenceSampler{
-		BaseModel:     m,
-		NewChainCount: 2,
-		MaxChains:     128,
-		DistFunc:      d,
-		Gen:           gen,
+		BaseModel: m,
+		DistFunc:  d,
+		Gen:       gen,
+		MaxChains: 128,
 	}
 	return s, nil
 }
@@ -66,12 +62,18 @@ func (c *ConvergenceSampler) Adapt(chains []*Chain) ([]*Chain, error) {
 	}
 
 	if len(chains) >= c.MaxChains {
-		return chains, nil // Can't create any more chains
+		return chains, nil
 	}
 
-	// Build an array of non-collapsed, non-fixed variables
-	vars := make([]*model.Variable, 0, len(c.BaseModel.Vars))
-	for _, v := range c.BaseModel.Vars {
+	// Build an array of non-collapsed, non-fixed variables - to do this we
+	// need to merge the chains
+	mergedVars, err := MergeChains(chains)
+	if err != nil {
+		return nil, err
+	}
+
+	vars := make([]*model.Variable, 0, len(mergedVars))
+	for _, v := range mergedVars {
 		if v.FixedVal < 0 && !v.Collapsed {
 			vars = append(vars, v)
 		}
@@ -88,8 +90,9 @@ func (c *ConvergenceSampler) Adapt(chains []*Chain) ([]*Chain, error) {
 	if len(vars) == 1 {
 		varIdx = vars[0].ID
 	} else {
-		// Get convergence for our variables
-		converge, err := ChainConvergence(chains, c.DistFunc, nil)
+		// Get convergence for our variables - note that we have already merged
+		// variables, so we can use those
+		converge, err := ChainConvergence(chains, c.DistFunc, mergedVars)
 		if err != nil {
 			return nil, err
 		}
