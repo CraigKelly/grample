@@ -82,7 +82,6 @@ func ChainConvergence(chains []*Chain, distFunc Measure) ([]float64, error) {
 		vals[i] = math.Sqrt((4.0 * vhat) / (2.0 * W))
 	}
 
-	// TODO: unit testing and add to main loop
 	return vals, nil
 }
 

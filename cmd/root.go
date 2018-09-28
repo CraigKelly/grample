@@ -294,10 +294,10 @@ func modelMarginals(sp *startupParams) error {
 	}
 	if sp.baseCount <= 0 {
 		sp.baseCount = int64(runtime.NumCPU())
-		if sp.baseCount < 2 {
-			sp.out.Printf("Base chain count was %d, forcing to 2\n", sp.baseCount)
-			sp.baseCount = 2
-		}
+	}
+	if sp.baseCount < 2 {
+		sp.out.Printf("Base chain count was %d, forcing to 2\n", sp.baseCount)
+		sp.baseCount = 2
 	}
 
 	// Report what's going on
@@ -325,11 +325,13 @@ func modelMarginals(sp *startupParams) error {
 		var samp sampler.FullSampler
 
 		if strings.ToLower(sp.samplerName) == "simple" {
+			// Simple Gibbs - just created the chains we need
 			samp, err = sampler.NewGibbsSimple(gen, modCopy)
 			if err != nil {
 				return errors.Wrapf(err, "Could not create %s", sp.samplerName)
 			}
 		} else if strings.ToLower(sp.samplerName) == "collapsed" {
+			// Collapsed Gibbs - collapse a random variable per chain
 			coll, err := sampler.NewGibbsCollapsed(gen, modCopy)
 			if err != nil {
 				return errors.Wrapf(err, "Could not create %s", sp.samplerName)
@@ -342,15 +344,19 @@ func modelMarginals(sp *startupParams) error {
 			sp.out.Printf("MARGINAL: %+v\n", colVar.Marginal)
 			samp = coll
 		} else if strings.ToLower(sp.samplerName) == "adaptive" {
+			// Adaptive (collapsed) Gibbs - don't pre-collapse anything: the
+			// adaptive sampler strategy will handle that for us
 			coll, err := sampler.NewGibbsCollapsed(gen, modCopy)
 			if err != nil {
 				return errors.Wrapf(err, "Could not create %s", sp.samplerName)
 			}
 			samp = coll
 		} else {
+			// Doh! We don't know this sampler
 			return errors.Errorf("Unknown Sampler: %s", sp.samplerName)
 		}
 
+		// Create our chains and update the monitor
 		ch, err := sampler.NewChain(modCopy, samp, int(sp.convergeWindow), sp.burnIn)
 		if err != nil {
 			return errors.Wrapf(err, "Could not create initial chain")
@@ -359,6 +365,7 @@ func modelMarginals(sp *startupParams) error {
 		chains[idx] = ch
 		sp.mon.BaseChains.Add(1)
 		sp.mon.TotalChains.Add(1)
+		// TODO: update TotalChains after adapt step in loop below
 	}
 
 	// Chains created: now we can select our adaptive strategy
