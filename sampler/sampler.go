@@ -21,7 +21,7 @@ type FullSampler interface {
 // ready to advance. The simplest AdaptiveSampler just returns the chains
 // passed and is equivalent to whatever base sampler is currently in use.
 type AdaptiveSampler interface {
-	Adapt(chains []*Chain) ([]*Chain, error)
+	Adapt(chains []*Chain, newChainCount int) ([]*Chain, error)
 }
 
 // A VarSampler selects from an array of variables with some probability.

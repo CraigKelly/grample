@@ -36,6 +36,7 @@ type startupParams struct {
 	burnIn         int64
 	convergeWindow int64
 	baseCount      int64
+	chainAdds      int64
 	maxIters       int64
 	maxSecs        int64
 	traceFile      string
@@ -97,18 +98,19 @@ func (s *startupParams) Setup() error {
 }
 
 func (s *startupParams) dump(out *log.Logger) {
-	out.Printf("Verbose:        %v\n", s.verbose)
-	out.Printf("Model:          %s\n", s.uaiFile)
-	out.Printf("Apply Evidence: %v\n", s.useEvidence)
-	out.Printf("Solution:       %v\n", s.solFile)
-	out.Printf("Sampler:        %s\n", s.samplerName)
-	out.Printf("Burn In:        %12d\n", s.burnIn)
-	out.Printf("Converge Win:   %12d\n", s.convergeWindow)
-	out.Printf("Num Base Chain: %12d\n", s.baseCount)
-	out.Printf("Max Iters:      %12d\n", s.maxIters)
-	out.Printf("Max Secs:       %12d\n", s.maxSecs)
-	out.Printf("Rnd Seed:       %12d\n", s.randomSeed)
-	out.Printf("Monitor Addr:   %s\n", s.monitorAddr)
+	out.Printf("Verbose:                %v\n", s.verbose)
+	out.Printf("Model:                  %s\n", s.uaiFile)
+	out.Printf("Apply Evidence:         %v\n", s.useEvidence)
+	out.Printf("Solution:               %v\n", s.solFile)
+	out.Printf("Sampler:                %s\n", s.samplerName)
+	out.Printf("Burn In:                %12d\n", s.burnIn)
+	out.Printf("Converge Win:           %12d\n", s.convergeWindow)
+	out.Printf("Num Base Chain:         %12d\n", s.baseCount)
+	out.Printf("Chains Added per Adapt: %12d\n", s.chainAdds)
+	out.Printf("Max Iters:              %12d\n", s.maxIters)
+	out.Printf("Max Secs:               %12d\n", s.maxSecs)
+	out.Printf("Rnd Seed:               %12d\n", s.randomSeed)
+	out.Printf("Monitor Addr:           %s\n", s.monitorAddr)
 }
 
 // Report just writes commands - must be called after Setup
@@ -183,10 +185,11 @@ func Execute() {
 	pf.Int64VarP(&sp.burnIn, "burnin", "b", -1, "Burn-In iteration count - if < 0, will use 2000*n (n= # vars)")
 	pf.Int64VarP(&sp.convergeWindow, "cwin", "w", -1, "Sample window size for measuring convergence, if <= 0 will use burnin size")
 	pf.Int64VarP(&sp.baseCount, "chains", "c", -1, "Number of base/starting chains, if <= 0 will use number of CPUs")
+	pf.Int64VarP(&sp.chainAdds, "chainadds", "a", 1, "Number of chains added in an adaptive step (only valid if sampler=adaptive)")
 	pf.Int64VarP(&sp.maxIters, "maxiters", "i", 0, "Maximum iterations (not including burnin) 0 if < 0 will use 20000*n")
 	pf.Int64VarP(&sp.maxSecs, "maxsecs", "x", 300, "Maximum seconds to run (0 for no maximum)")
 	pf.StringVarP(&sp.traceFile, "trace", "t", "", "Optional trace file: all samples written here")
-	pf.StringVarP(&sp.monitorAddr, "addr", "a", ":8000", "Address (ip:port) that the monitor will listen at")
+	pf.StringVarP(&sp.monitorAddr, "addr", "", ":8000", "Address (ip:port) that the monitor will listen at")
 
 	cmd.MarkPersistentFlagRequired("model")
 	cmd.MarkPersistentFlagRequired("sampler")
@@ -375,6 +378,9 @@ func modelMarginals(sp *startupParams) error {
 		adapt, err = sampler.NewConvergenceSampler(gen, mod.Clone(), nil)
 	} else {
 		// Everything just skips adaptation
+		if sp.chainAdds != 1 {
+			return errors.Errorf("Sampler is not adaptive: ChainAdds=%d makes no sense", sp.chainAdds)
+		}
 		adapt, err = sampler.NewIdentitySampler()
 	}
 	if err != nil {
@@ -453,7 +459,7 @@ func modelMarginals(sp *startupParams) error {
 		}
 		if keepWorking && keepAdapting {
 			preCount := len(chains)
-			chains, err = adapt.Adapt(chains)
+			chains, err = adapt.Adapt(chains, int(sp.chainAdds))
 			if err != nil {
 				return err
 			}

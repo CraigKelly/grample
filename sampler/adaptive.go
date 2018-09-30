@@ -21,7 +21,7 @@ func NewIdentitySampler() (*IdentitySampler, error) {
 
 // Adapt for an IdentitySampler is just an identity operation (thus the clever
 // name :)
-func (i *IdentitySampler) Adapt(chains []*Chain) ([]*Chain, error) {
+func (i *IdentitySampler) Adapt(chains []*Chain, newChainCount int) ([]*Chain, error) {
 	return chains, nil
 }
 
@@ -56,7 +56,7 @@ func NewConvergenceSampler(gen *rand.Generator, m *model.Model, d Measure) (*Con
 // Adapt for a ConvergenceSampler creates new chains with collapsed variables.
 // The variable to collapse is selected from a probability distribution
 // weighted by a convergence metric.
-func (c *ConvergenceSampler) Adapt(chains []*Chain) ([]*Chain, error) {
+func (c *ConvergenceSampler) Adapt(chains []*Chain, newChainCount int) ([]*Chain, error) {
 	if len(chains) < 2 {
 		return nil, errors.Errorf("At least 2 chains required for adaptation")
 	}
@@ -92,11 +92,11 @@ func (c *ConvergenceSampler) Adapt(chains []*Chain) ([]*Chain, error) {
 		return chains, nil
 	}
 
-	// If only 1 var, then we have only one choice... otherwise We select from
-	// our list based on convergence.
-	var varIdx int
-	if len(vars) == 1 {
-		varIdx = vars[0].ID
+	targetVarIdxs := make([]int, 0, newChainCount)
+	if len(vars) <= newChainCount {
+		for _, v := range vars {
+			targetVarIdxs = append(targetVarIdxs, v.ID)
+		}
 	} else {
 		// Get convergence for our variables - note that we have already merged
 		// variables, so we can use those
@@ -112,20 +112,47 @@ func (c *ConvergenceSampler) Adapt(chains []*Chain) ([]*Chain, error) {
 		sort.Slice(vars, func(i, j int) bool {
 			return converge[vars[i].ID] > converge[vars[j].ID]
 		})
-		varIdx = vars[len(vars)-1].ID
+
+		pos := len(vars) - 1
+		for cc := 0; cc < newChainCount; cc++ {
+			targetVarIdxs = append(targetVarIdxs, vars[pos].ID)
+			pos--
+		}
 	}
 
-	// Now we know enough to collapse our variable and create a new chain
-	_, err = samp.Collapse(varIdx)
-	if err != nil {
-		return nil, err
+	if len(targetVarIdxs) < 1 {
+		return chains, nil
 	}
 
 	lastChain := chains[len(chains)-1]
-	newChain, err := NewChain(modClone, samp, lastChain.ConvergenceWindow, 1)
-	if err != nil {
-		return nil, err
+
+	// Note that we our sampler from above and then nil it: this is so chains
+	// 2+ get their own sampler
+	for _, varIdx := range targetVarIdxs {
+		if samp == nil {
+			modClone = c.BaseModel.Clone()
+			samp, err = NewGibbsCollapsed(c.Gen, modClone)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		// Now we know enough to collapse our variable and create a new chain
+		_, err = samp.Collapse(varIdx)
+		if err != nil {
+			return nil, err
+		}
+
+		newChain, err := NewChain(modClone, samp, lastChain.ConvergenceWindow, 2)
+		if err != nil {
+			return nil, err
+		}
+
+		chains = append(chains, newChain)
+
+		// Reset after we use a sampler
+		samp = nil
 	}
 
-	return append(chains, newChain), nil
+	return chains, nil
 }

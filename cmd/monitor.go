@@ -18,6 +18,7 @@ type monitor struct {
 	BurnIn         *expvar.Int
 	ConvergeWindow *expvar.Int
 	BaseChains     *expvar.Int
+	ChainAdds      *expvar.Int
 	TotalChains    *expvar.Int
 	MaxIters       *expvar.Int
 	MaxSeconds     *expvar.Int
@@ -52,6 +53,7 @@ func (m *monitor) Start(listenAddr string) error {
 	m.BurnIn = expvar.NewInt("Burn-In")
 	m.ConvergeWindow = expvar.NewInt("Convergence-Window")
 	m.BaseChains = expvar.NewInt("Base-Chain-Count")
+	m.ChainAdds = expvar.NewInt("Chain-Adds-For-Adaptive-Step")
 	m.TotalChains = expvar.NewInt("Total-Chain-Count")
 	m.MaxIters = expvar.NewInt("Max-Iterations")
 	m.MaxSeconds = expvar.NewInt("Max-Seconds")
