@@ -79,6 +79,10 @@ func NewErrorSuite(vars1 []*Variable, vars2 []*Variable) (*ErrorSuite, error) {
 
 // MaxAbsDiff returns the maximum difference found between the two prob dists
 func MaxAbsDiff(v1 *Variable, v2 *Variable) float64 {
+	if v1.FixedVal >= 0 || v2.FixedVal >= 0 {
+		return 0.0
+	}
+
 	card := v1.Card
 
 	// get totals for normalizing
@@ -111,6 +115,10 @@ func MaxAbsDiff(v1 *Variable, v2 *Variable) float64 {
 
 // MeanAbsDiff returns the mean of the differenced found between the two prob dists
 func MeanAbsDiff(v1 *Variable, v2 *Variable) float64 {
+	if v1.FixedVal >= 0 || v2.FixedVal >= 0 {
+		return 0.0
+	}
+
 	card := v1.Card
 
 	if card < 1 {
@@ -148,6 +156,10 @@ func MeanAbsDiff(v1 *Variable, v2 *Variable) float64 {
 // (sum=1.0), while the model's marginals are assumed non-normalized (but
 // positive)
 func HellingerDiff(v1 *Variable, v2 *Variable) float64 {
+	if v1.FixedVal >= 0 || v2.FixedVal >= 0 {
+		return 0.0
+	}
+
 	card := v1.Card
 
 	// get totals for normalizing
@@ -202,6 +214,10 @@ func klDivergence(v1 []float64, v2 []float64) float64 {
 // JSDivergence returns the Jensen-Shannon divergence, which is a
 // symmetric gneralization of the KL divergence
 func JSDivergence(v1 *Variable, v2 *Variable) float64 {
+	if v1.FixedVal >= 0 || v2.FixedVal >= 0 {
+		return 0.0
+	}
+
 	const eps = float64(1e-12)
 
 	card := v1.Card
