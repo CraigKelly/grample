@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -484,7 +485,8 @@ func modelMarginals(sp *startupParams) error {
 	// Output the marginals we found and our final evaluation
 	sp.out.Printf("DONE\n")
 
-	// Write score if we have a solution file
+	// Write score if we have a solution file (and include Merlin info)
+	var merlin *model.Solution
 	if sp.solFile {
 		score, err := sol.Error(finalVars)
 		if err != nil {
@@ -504,12 +506,14 @@ func modelMarginals(sp *startupParams) error {
 		// Go ahead and include Merlin info if we can find a merlin file
 		merlinFilename := sp.uaiFile + ".merlin.MAR"
 		if _, err := os.Stat(merlinFilename); !os.IsNotExist(err) {
-			merlin, re := model.NewSolutionFromFile(reader, merlinFilename)
+			var re error
+			merlin, re = model.NewSolutionFromFile(reader, merlinFilename)
 			if re != nil {
 				return errors.Wrapf(re, "Found merlin MAR file but could not read it")
 			}
 
-			merlinError, re := merlin.Error(sol.Vars)
+			//merlinError, re := merlin.Error(sol.Vars)
+			merlinError, re := sol.Error(merlin.Vars)
 			if re != nil {
 				return errors.Wrapf(re, "Error calculating merlin error")
 			}
@@ -567,6 +571,29 @@ func modelMarginals(sp *startupParams) error {
 	sp.trace.Printf("// VARS (ESTIMATED)")
 	for _, v := range finalVars {
 		if v.FixedVal < 0 {
+			sp.traceJ.Encode(v)
+			sp.verb.Printf("Variable[%d] %s (Card:%d, %+v) %+v\n", v.ID, v.Name, v.Card, v.State, v.Marginal)
+		}
+	}
+
+	// Add a variable breakdown by Merlin results if possible
+	if merlin != nil {
+		report := make([]*model.Variable, 0, len(finalVars))
+		for i, v := range finalVars {
+			if v.FixedVal >= 0 {
+				continue
+			}
+			mv := merlin.Vars[i]
+			v.State["MerlinHellError"] = model.HellingerDiff(v, mv)
+			report = append(report, v)
+		}
+
+		sort.Slice(report, func(lhs, rhs int) bool {
+			return report[lhs].State["MerlinHellError"] < report[rhs].State["MerlinHellError"]
+		})
+
+		sp.trace.Printf("// VARS SORTED BY DIST FROM HELLINGER")
+		for _, v := range report {
 			sp.traceJ.Encode(v)
 			sp.verb.Printf("Variable[%d] %s (Card:%d, %+v) %+v\n", v.ID, v.Name, v.Card, v.State, v.Marginal)
 		}
