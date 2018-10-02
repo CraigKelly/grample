@@ -62,7 +62,7 @@ func CollapsedIteration(sp *startupParams) error {
 	if err != nil {
 		return errors.Wrapf(err, "Error calculating init score on startup")
 	}
-	errorReport(sp, "ASSUME ALL MARGINALS ARE UNIFORM", score, false)
+	errorReport(sp, "ASSUME ALL MARGINALS ARE UNIFORM", score, false, sp.out)
 
 	merlinFilename := sp.uaiFile + ".merlin.MAR"
 	var merlin *model.Solution
@@ -79,7 +79,7 @@ func CollapsedIteration(sp *startupParams) error {
 		if err != nil {
 			return errors.Wrapf(err, "Error calculating merlin error on startup")
 		}
-		errorReport(sp, "MERLIN SCORE", merlinError, false)
+		errorReport(sp, "MERLIN SCORE", merlinError, false, sp.out)
 	}
 
 	gen, err := rand.NewGenerator(sp.randomSeed)

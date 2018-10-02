@@ -208,12 +208,17 @@ func Execute() {
 // this function that we assume is never called concurrently.
 var errorBuffer strings.Builder
 
-func errorReport(sp *startupParams, prefix string, es *model.ErrorSuite, short bool) {
-	// Update monitor with latest error results
-	sp.mon.LastMeanHellinger.Set(es.MeanHellinger)
-	sp.mon.LastMaxHellinger.Set(es.MaxHellinger)
-	sp.mon.LastMeanJSD.Set(es.MeanJSDiverge)
-	sp.mon.LastMaxJSD.Set(es.MaxJSDiverge)
+func errorReport(sp *startupParams, prefix string, es *model.ErrorSuite, short bool, target *log.Logger) {
+	if target == nil {
+		// Custom log: no monitor update
+		target = sp.out
+	} else {
+		// Update monitor with latest error results
+		sp.mon.LastMeanHellinger.Set(es.MeanHellinger)
+		sp.mon.LastMaxHellinger.Set(es.MaxHellinger)
+		sp.mon.LastMeanJSD.Set(es.MeanJSDiverge)
+		sp.mon.LastMaxJSD.Set(es.MaxJSDiverge)
+	}
 
 	// Select
 	var patt string
@@ -223,7 +228,7 @@ func errorReport(sp *startupParams, prefix string, es *model.ErrorSuite, short b
 		patt = "%s=>%.6f(%7.3f),X%.6f(%7.3f) | "
 		titles = []string{"MAE", "XAE", "HEL", "JSD"}
 	} else {
-		sp.out.Printf("%s ... M:mean(neg log), X:max(neg log)\n", prefix)
+		target.Printf("%s ... M:mean(neg log), X:max(neg log)\n", prefix)
 		patt = "%15s => M:%.6f(%7.3f) X:%.6f(%7.3f)\n"
 		titles = []string{"MeanAbsError", "MaxAbsError", "Hellinger", "JS Diverge"}
 	}
@@ -252,7 +257,7 @@ func errorReport(sp *startupParams, prefix string, es *model.ErrorSuite, short b
 		es.MaxJSDiverge, -math.Log2(es.MaxJSDiverge),
 	)
 
-	sp.out.Printf(errorBuffer.String())
+	target.Printf(errorBuffer.String())
 }
 
 // Our current default action (and the only one we support)
@@ -287,7 +292,7 @@ func modelMarginals(sp *startupParams) error {
 		if err != nil {
 			return errors.Wrapf(err, "Error calculating init score on startup")
 		}
-		errorReport(sp, "START", score, false)
+		errorReport(sp, "START", score, false, nil)
 	}
 
 	// Some of our parameters are based on variable count
@@ -465,7 +470,7 @@ func modelMarginals(sp *startupParams) error {
 				}
 
 				if now.After(nextStatus) || !keepWorking {
-					errorReport(sp, "", score, true)
+					errorReport(sp, "", score, true, nil)
 				}
 
 				if sp.experiment {
@@ -526,7 +531,11 @@ func modelMarginals(sp *startupParams) error {
 		if err != nil {
 			return errors.Wrapf(err, "Error calculating Final Score!")
 		}
-		errorReport(sp, "FINAL", score, false)
+		errorReport(sp, "FINAL", score, false, nil)
+		if sp.experiment {
+			sp.trace.Printf("// FINAL STATUS\n")
+			errorReport(sp, "FINAL", score, false, sp.trace)
+		}
 
 		// Update the state map for variables for the trace/verbose stuff below
 		for i, v := range finalVars {
@@ -551,13 +560,17 @@ func modelMarginals(sp *startupParams) error {
 			if re != nil {
 				return errors.Wrapf(re, "Error calculating merlin error")
 			}
-			errorReport(sp, "MERLIN SCORE", merlinError, false)
+			errorReport(sp, "MERLIN SCORE", merlinError, false, sp.out)
+			if sp.experiment {
+				sp.trace.Printf("// MERLIN SCORES\n")
+				errorReport(sp, "MERLIN SCORE", merlinError, false, sp.trace)
+			}
 
 			merlinError, re = merlin.Error(finalVars)
 			if re != nil {
 				return errors.Wrapf(re, "Error calculating merlin error")
 			}
-			errorReport(sp, "OUR SCORE USING MERLIN AS SOLUTION", merlinError, false)
+			errorReport(sp, "OUR SCORE USING MERLIN AS SOLUTION", merlinError, false, sp.out)
 		}
 	}
 
