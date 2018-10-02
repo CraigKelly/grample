@@ -210,10 +210,10 @@ var errorBuffer strings.Builder
 
 func errorReport(sp *startupParams, prefix string, es *model.ErrorSuite, short bool, target *log.Logger) {
 	if target == nil {
-		// Custom log: no monitor update
+		// Default log
 		target = sp.out
-	} else {
 		// Update monitor with latest error results
+		// (Custom log target means we don't update the mmonitor)
 		sp.mon.LastMeanHellinger.Set(es.MeanHellinger)
 		sp.mon.LastMaxHellinger.Set(es.MaxHellinger)
 		sp.mon.LastMeanJSD.Set(es.MeanJSDiverge)
@@ -451,11 +451,10 @@ func modelMarginals(sp *startupParams) error {
 
 		// Status update (including experiment file)
 		if now.After(nextStatus) || !keepWorking || sp.experiment {
-			nextStatus = now.Add(untilStatus)
-
 			runTime := time.Now().Sub(startTime).Seconds()
-			sp.mon.RunTime.Set(runTime)
+
 			if now.After(nextStatus) || !keepWorking {
+				sp.mon.RunTime.Set(runTime)
 				sp.out.Printf("  Samps: %12d | RT %12.2fsec\n", sampleCount, runTime)
 			}
 
@@ -488,6 +487,10 @@ func modelMarginals(sp *startupParams) error {
 					)
 				}
 			}
+
+			if now.After(nextStatus) || !keepWorking {
+				nextStatus = now.Add(untilStatus)
+			}
 		}
 
 		// Adaptive update (if we're still updating)
@@ -512,7 +515,8 @@ func modelMarginals(sp *startupParams) error {
 		}
 	}
 
-	// COMPLETED! normalize our marginals
+	// COMPLETED! grab results and normalize our marginals
+	runTime := time.Now().Sub(startTime).Seconds()
 	finalVars, err := sampler.MergeChains(chains)
 	if err != nil {
 		return errors.Wrapf(err, "Error in final chain merge")
@@ -533,6 +537,19 @@ func modelMarginals(sp *startupParams) error {
 		}
 		errorReport(sp, "FINAL", score, false, nil)
 		if sp.experiment {
+			colCount := 0
+			for _, v := range finalVars {
+				if v.Collapsed {
+					colCount++
+				}
+			}
+			sp.trace.Printf("%.1f, %.8f, %.5f, %.8f, %.5f, %d\n",
+				runTime,
+				score.MaxHellinger, -math.Log2(score.MaxHellinger),
+				score.MaxJSDiverge, -math.Log2(score.MaxJSDiverge),
+				colCount,
+			)
+
 			sp.trace.Printf("// FINAL STATUS\n")
 			errorReport(sp, "FINAL", score, false, sp.trace)
 		}

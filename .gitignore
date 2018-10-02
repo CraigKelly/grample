@@ -5,6 +5,7 @@ cover.html
 *.json
 temp.*
 *-collapse.txt
+*.trace
 
 # Binaries for programs and plugins
 *.exe

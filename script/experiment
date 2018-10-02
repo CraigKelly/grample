@@ -4,7 +4,7 @@ set -e
 
 BURN_IN=2000
 START_CHAINS=2
-ADAPT_CHAINS=4
+ADAPT_CHAINS=1
 CONVERGE_WIN=2000
 MAX_SECS=300
 
@@ -33,9 +33,9 @@ make
 
 # one deterministic.uai
 
-one Alchemy_11.uai
-one CSP_13.uai
+# one Alchemy_11.uai
+# one CSP_13.uai
 one dv-rel_1.uai
-one dv-rel_2.uai
-one Grids_12.uai
-one Promedus_11.uai
+# one dv-rel_2.uai
+# one Grids_12.uai
+# one Promedus_11.uai
