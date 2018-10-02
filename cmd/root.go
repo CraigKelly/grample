@@ -42,6 +42,7 @@ type startupParams struct {
 	maxSecs        int64
 	traceFile      string
 	monitorAddr    string
+	experiment     bool
 
 	// These are created/handled by Setup
 	out    *log.Logger
@@ -112,6 +113,7 @@ func (s *startupParams) dump(out *log.Logger) {
 	out.Printf("Max Secs:               %12d\n", s.maxSecs)
 	out.Printf("Rnd Seed:               %12d\n", s.randomSeed)
 	out.Printf("Monitor Addr:           %s\n", s.monitorAddr)
+	out.Printf("Experiment Mode:        %v\n", s.experiment)
 }
 
 // Report just writes commands - must be called after Setup
@@ -191,6 +193,7 @@ func Execute() {
 	pf.Int64VarP(&sp.maxSecs, "maxsecs", "x", 300, "Maximum seconds to run (0 for no maximum)")
 	pf.StringVarP(&sp.traceFile, "trace", "t", "", "Optional trace file: all samples written here")
 	pf.StringVarP(&sp.monitorAddr, "addr", "", ":8000", "Address (ip:port) that the monitor will listen at")
+	pf.BoolVarP(&sp.experiment, "experiment", "p", false, "Experiment mode - every chain advance status is written to trace file")
 
 	cmd.MarkPersistentFlagRequired("model")
 	cmd.MarkPersistentFlagRequired("sampler")
@@ -257,6 +260,11 @@ func modelMarginals(sp *startupParams) error {
 	var mod *model.Model
 	var sol *model.Solution
 	var err error
+
+	// Can't be in experiment mode with a trace file
+	if sp.experiment && len(sp.traceFile) < 1 {
+		return errors.New("Experiment mode requires a trace file")
+	}
 
 	// Read model from file
 	sp.out.Printf("Reading model from %s\n", sp.uaiFile)
@@ -393,6 +401,12 @@ func modelMarginals(sp *startupParams) error {
 		sp.out.Printf("WARNING: verbose is set, every accepted sample will be written to trace file %s\n", sp.traceFile)
 	}
 
+	// If in experiment mode, write experiment header
+	if sp.experiment {
+		sp.trace.Printf("// EXPERIMENT RESULTS\n")
+		sp.trace.Printf("RunSecs, MaxHell, NegLogMaxHell, MaxJS, NegLogMaxJS, CollapseCount\n")
+	}
+
 	// Sampling: main iterations
 	sp.out.Printf("Main Sampling Start\n")
 
@@ -430,13 +444,15 @@ func modelMarginals(sp *startupParams) error {
 			keepWorking = false
 		}
 
-		// Status update
-		if now.After(nextStatus) || !keepWorking {
+		// Status update (including experiment file)
+		if now.After(nextStatus) || !keepWorking || sp.experiment {
 			nextStatus = now.Add(untilStatus)
 
 			runTime := time.Now().Sub(startTime).Seconds()
 			sp.mon.RunTime.Set(runTime)
-			sp.out.Printf("  Samps: %12d | RT %12.2fsec\n", sampleCount, runTime)
+			if now.After(nextStatus) || !keepWorking {
+				sp.out.Printf("  Samps: %12d | RT %12.2fsec\n", sampleCount, runTime)
+			}
 
 			if sp.solFile {
 				merged, err := sampler.MergeChains(chains)
@@ -447,7 +463,25 @@ func modelMarginals(sp *startupParams) error {
 				if err != nil {
 					return errors.Wrapf(err, "Error calculating score")
 				}
-				errorReport(sp, "", score, true)
+
+				if now.After(nextStatus) || !keepWorking {
+					errorReport(sp, "", score, true)
+				}
+
+				if sp.experiment {
+					colCount := 0
+					for _, v := range merged {
+						if v.Collapsed {
+							colCount++
+						}
+					}
+					sp.trace.Printf("%.1f, %.8f, %.5f, %.8f, %.5f, %d\n",
+						runTime,
+						score.MaxHellinger, -math.Log2(score.MaxHellinger),
+						score.MaxJSDiverge, -math.Log2(score.MaxJSDiverge),
+						colCount,
+					)
+				}
 			}
 		}
 
