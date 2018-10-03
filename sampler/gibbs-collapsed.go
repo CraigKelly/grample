@@ -9,8 +9,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// TODO: write an output MAR file after end of run (like merlin)
-
 // varSet is a set of variables, used to track the neighborhood for a variable
 type varSet map[int]bool
 
@@ -92,7 +90,7 @@ func (g *GibbsCollapsed) FunctionCount(v *model.Variable) int {
 // NeighborVarMax is the max size of the neighborhood allowed for a
 // variable that we will collapse. Note that it includes the variable itself,
 // so the total size of input space is 2^(M-1) where M is NeighborVarMax.
-const NeighborVarMax = 12
+const NeighborVarMax = 15
 
 // Collapse integrates out the variable given by index. If the index is < 0, a
 // variable is randomly chosen. The collapsed variable is returned for

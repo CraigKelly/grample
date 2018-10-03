@@ -21,8 +21,6 @@ import (
 	"github.com/CraigKelly/grample/sampler"
 )
 
-// TODO: actually test new code, ESP adaptive sampler
-
 // We want to cheat as little as possible, so we grab the start time ASAP
 var startTime = time.Now()
 

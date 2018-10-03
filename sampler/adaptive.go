@@ -9,8 +9,6 @@ import (
 	"github.com/CraigKelly/grample/rand"
 )
 
-// TODO: unit testing
-
 // IdentitySampler is just a non-adaptive strategy.
 type IdentitySampler struct{}
 
