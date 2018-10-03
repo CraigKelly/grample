@@ -40,6 +40,7 @@ type startupParams struct {
 	maxSecs        int64
 	traceFile      string
 	monitorAddr    string
+	experiment     bool
 
 	// These are created/handled by Setup
 	out    *log.Logger
@@ -110,6 +111,7 @@ func (s *startupParams) dump(out *log.Logger) {
 	out.Printf("Max Secs:               %12d\n", s.maxSecs)
 	out.Printf("Rnd Seed:               %12d\n", s.randomSeed)
 	out.Printf("Monitor Addr:           %s\n", s.monitorAddr)
+	out.Printf("Experiment Mode:        %v\n", s.experiment)
 }
 
 // Report just writes commands - must be called after Setup
@@ -189,6 +191,7 @@ func Execute() {
 	pf.Int64VarP(&sp.maxSecs, "maxsecs", "x", 300, "Maximum seconds to run (0 for no maximum)")
 	pf.StringVarP(&sp.traceFile, "trace", "t", "", "Optional trace file: all samples written here")
 	pf.StringVarP(&sp.monitorAddr, "addr", "", ":8000", "Address (ip:port) that the monitor will listen at")
+	pf.BoolVarP(&sp.experiment, "experiment", "p", false, "Experiment mode - every chain advance status is written to trace file")
 
 	cmd.MarkPersistentFlagRequired("model")
 	cmd.MarkPersistentFlagRequired("sampler")
@@ -203,12 +206,17 @@ func Execute() {
 // this function that we assume is never called concurrently.
 var errorBuffer strings.Builder
 
-func errorReport(sp *startupParams, prefix string, es *model.ErrorSuite, short bool) {
-	// Update monitor with latest error results
-	sp.mon.LastMeanHellinger.Set(es.MeanHellinger)
-	sp.mon.LastMaxHellinger.Set(es.MaxHellinger)
-	sp.mon.LastMeanJSD.Set(es.MeanJSDiverge)
-	sp.mon.LastMaxJSD.Set(es.MaxJSDiverge)
+func errorReport(sp *startupParams, prefix string, es *model.ErrorSuite, short bool, target *log.Logger) {
+	if target == nil {
+		// Default log
+		target = sp.out
+		// Update monitor with latest error results
+		// (Custom log target means we don't update the mmonitor)
+		sp.mon.LastMeanHellinger.Set(es.MeanHellinger)
+		sp.mon.LastMaxHellinger.Set(es.MaxHellinger)
+		sp.mon.LastMeanJSD.Set(es.MeanJSDiverge)
+		sp.mon.LastMaxJSD.Set(es.MaxJSDiverge)
+	}
 
 	// Select
 	var patt string
@@ -218,7 +226,7 @@ func errorReport(sp *startupParams, prefix string, es *model.ErrorSuite, short b
 		patt = "%s=>%.6f(%7.3f),X%.6f(%7.3f) | "
 		titles = []string{"MAE", "XAE", "HEL", "JSD"}
 	} else {
-		sp.out.Printf("%s ... M:mean(neg log), X:max(neg log)\n", prefix)
+		target.Printf("%s ... M:mean(neg log), X:max(neg log)\n", prefix)
 		patt = "%15s => M:%.6f(%7.3f) X:%.6f(%7.3f)\n"
 		titles = []string{"MeanAbsError", "MaxAbsError", "Hellinger", "JS Diverge"}
 	}
@@ -247,7 +255,7 @@ func errorReport(sp *startupParams, prefix string, es *model.ErrorSuite, short b
 		es.MaxJSDiverge, -math.Log2(es.MaxJSDiverge),
 	)
 
-	sp.out.Printf(errorBuffer.String())
+	target.Printf(errorBuffer.String())
 }
 
 // Our current default action (and the only one we support)
@@ -255,6 +263,11 @@ func modelMarginals(sp *startupParams) error {
 	var mod *model.Model
 	var sol *model.Solution
 	var err error
+
+	// Can't be in experiment mode with a trace file
+	if sp.experiment && len(sp.traceFile) < 1 {
+		return errors.New("Experiment mode requires a trace file")
+	}
 
 	// Read model from file
 	sp.out.Printf("Reading model from %s\n", sp.uaiFile)
@@ -277,7 +290,7 @@ func modelMarginals(sp *startupParams) error {
 		if err != nil {
 			return errors.Wrapf(err, "Error calculating init score on startup")
 		}
-		errorReport(sp, "START", score, false)
+		errorReport(sp, "START", score, false, nil)
 	}
 
 	// Some of our parameters are based on variable count
@@ -391,6 +404,12 @@ func modelMarginals(sp *startupParams) error {
 		sp.out.Printf("WARNING: verbose is set, every accepted sample will be written to trace file %s\n", sp.traceFile)
 	}
 
+	// If in experiment mode, write experiment header
+	if sp.experiment {
+		sp.trace.Printf("// EXPERIMENT RESULTS\n")
+		sp.trace.Printf("RunSecs, MaxHell, NegLogMaxHell, MaxJS, NegLogMaxJS, CollapseCount\n")
+	}
+
 	// Sampling: main iterations
 	sp.out.Printf("Main Sampling Start\n")
 
@@ -428,13 +447,14 @@ func modelMarginals(sp *startupParams) error {
 			keepWorking = false
 		}
 
-		// Status update
-		if now.After(nextStatus) || !keepWorking {
-			nextStatus = now.Add(untilStatus)
-
+		// Status update (including experiment file)
+		if now.After(nextStatus) || !keepWorking || sp.experiment {
 			runTime := time.Now().Sub(startTime).Seconds()
-			sp.mon.RunTime.Set(runTime)
-			sp.out.Printf("  Samps: %12d | RT %12.2fsec\n", sampleCount, runTime)
+
+			if now.After(nextStatus) || !keepWorking {
+				sp.mon.RunTime.Set(runTime)
+				sp.out.Printf("  Samps: %12d | RT %12.2fsec\n", sampleCount, runTime)
+			}
 
 			if sp.solFile {
 				merged, err := sampler.MergeChains(chains)
@@ -445,7 +465,29 @@ func modelMarginals(sp *startupParams) error {
 				if err != nil {
 					return errors.Wrapf(err, "Error calculating score")
 				}
-				errorReport(sp, "", score, true)
+
+				if now.After(nextStatus) || !keepWorking {
+					errorReport(sp, "", score, true, nil)
+				}
+
+				if sp.experiment {
+					colCount := 0
+					for _, v := range merged {
+						if v.Collapsed {
+							colCount++
+						}
+					}
+					sp.trace.Printf("%.1f, %.8f, %.5f, %.8f, %.5f, %d\n",
+						runTime,
+						score.MaxHellinger, -math.Log2(score.MaxHellinger),
+						score.MaxJSDiverge, -math.Log2(score.MaxJSDiverge),
+						colCount,
+					)
+				}
+			}
+
+			if now.After(nextStatus) || !keepWorking {
+				nextStatus = now.Add(untilStatus)
 			}
 		}
 
@@ -471,7 +513,8 @@ func modelMarginals(sp *startupParams) error {
 		}
 	}
 
-	// COMPLETED! normalize our marginals
+	// COMPLETED! grab results and normalize our marginals
+	runTime := time.Now().Sub(startTime).Seconds()
 	finalVars, err := sampler.MergeChains(chains)
 	if err != nil {
 		return errors.Wrapf(err, "Error in final chain merge")
@@ -490,7 +533,24 @@ func modelMarginals(sp *startupParams) error {
 		if err != nil {
 			return errors.Wrapf(err, "Error calculating Final Score!")
 		}
-		errorReport(sp, "FINAL", score, false)
+		errorReport(sp, "FINAL", score, false, nil)
+		if sp.experiment {
+			colCount := 0
+			for _, v := range finalVars {
+				if v.Collapsed {
+					colCount++
+				}
+			}
+			sp.trace.Printf("%.1f, %.8f, %.5f, %.8f, %.5f, %d\n",
+				runTime,
+				score.MaxHellinger, -math.Log2(score.MaxHellinger),
+				score.MaxJSDiverge, -math.Log2(score.MaxJSDiverge),
+				colCount,
+			)
+
+			sp.trace.Printf("// FINAL STATUS\n")
+			errorReport(sp, "FINAL", score, false, sp.trace)
+		}
 
 		// Update the state map for variables for the trace/verbose stuff below
 		for i, v := range finalVars {
@@ -515,13 +575,17 @@ func modelMarginals(sp *startupParams) error {
 			if re != nil {
 				return errors.Wrapf(re, "Error calculating merlin error")
 			}
-			errorReport(sp, "MERLIN SCORE", merlinError, false)
+			errorReport(sp, "MERLIN SCORE", merlinError, false, sp.out)
+			if sp.experiment {
+				sp.trace.Printf("// MERLIN SCORES\n")
+				errorReport(sp, "MERLIN SCORE", merlinError, false, sp.trace)
+			}
 
 			merlinError, re = merlin.Error(finalVars)
 			if re != nil {
 				return errors.Wrapf(re, "Error calculating merlin error")
 			}
-			errorReport(sp, "OUR SCORE USING MERLIN AS SOLUTION", merlinError, false)
+			errorReport(sp, "OUR SCORE USING MERLIN AS SOLUTION", merlinError, false, sp.out)
 		}
 	}
 
