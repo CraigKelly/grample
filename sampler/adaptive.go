@@ -80,7 +80,8 @@ func (c *ConvergenceSampler) Adapt(chains []*Chain, newChainCount int) ([]*Chain
 
 	vars := make([]*model.Variable, 0, len(mergedVars))
 	for _, v := range mergedVars {
-		if v.FixedVal < 0 && !v.Collapsed && samp.BlanketSize(v) <= NeighborVarMax {
+        sz := samp.BlanketSize(v)
+		if v.FixedVal < 0 && !v.Collapsed && sz > 1 && sz <= NeighborVarMax {
 			vars = append(vars, v)
 		}
 	}

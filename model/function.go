@@ -56,7 +56,7 @@ func calcTabSize(vars []*Variable) int {
 	return ts
 }
 
-const maxTabSize = 1 << 22
+const maxTabSize = 1 << 23
 
 // NewFunction creates a function from an index and a list of variables
 func NewFunction(index int, vars []*Variable) (*Function, error) {
