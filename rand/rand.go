@@ -5,8 +5,10 @@ import (
 	"github.com/seehuhn/mt19937"
 )
 
-// A Generator uses a goroutine to populate batches of random numbers. One day
-// is will also use a better PRNG, like the Mersenne twister.
+// A Generator uses a goroutine to populate batches of random numbers.
+// Currently we use a Mersenne twister implementation instead of the
+// default Go implementation (which is fast, but has a much shorter
+// period than MT, and we use a LOT of random draws)
 type Generator struct {
 	ch chan int64
 }
