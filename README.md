@@ -3,20 +3,16 @@ title: grample README
 subtitle: Sampling for Probabilistic Graphical Models
 ---
 
-TODO: This entire document
-
 # Introduction
 
-TBD
+This software package is designed to read Markov networks and perform
+marginal estimation using Gibbs sampling. The main motivation for
+creating Yet Another MCMC software package was research: this is the
+experimental implementation of Adaptive Rao-Blackwellisation that
+Deepak Venugopal and I have been working on.
 
-# Architecture Overview
 
-TBD
 
-# Dependencies
+# License
 
-TBD
-
-# Hacking
-
-TBD
+This code is licensed under the MIT license: see `LICENSE` for details.
