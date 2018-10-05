@@ -92,8 +92,6 @@ func (s *startupParams) Setup() error {
 		s.traceJ = &DiscardJSON{}
 	}
 
-	s.mon = &monitor{}
-
 	return nil
 }
 
@@ -142,12 +140,14 @@ func runGrampleCmd(sp *startupParams, f grampleCmd) error {
 
 	sp.out.Printf("grample\n")
 
-	err = sp.mon.Start(sp.monitorAddr)
-	if err != nil {
-		return err
-	}
+	if sp.mon != nil {
+		err = sp.mon.Start(sp.monitorAddr)
+		if err != nil {
+			return err
+		}
 
-	defer sp.mon.Stop()
+		defer sp.mon.Stop()
+	}
 
 	return f(sp)
 }
@@ -157,45 +157,86 @@ func runGrampleCmd(sp *startupParams, f grampleCmd) error {
 func Execute() {
 	sp := &startupParams{}
 
+	// ROOT command (no default action) and global flags
 	var cmd = &cobra.Command{
 		Use:   "grample",
 		Short: "(Probalistic) Graphical Model Sampling Methods",
 		Long:  cmdHelp,
+	}
+
+	pf := cmd.PersistentFlags()
+	pf.BoolVarP(&sp.verbose, "verbose", "v", false, "Verbose logging (ALL samples written to --trace file)")
+	pf.Int64VarP(&sp.randomSeed, "seed", "e", 0, "Random seed to use")
+	pf.StringVarP(&sp.traceFile, "trace", "t", "", "Optional trace file")
+
+	// IMPORTANT: note that startup params get changed based on the command.
+	// For instance, sampler creates a monitor and collapse always turns on
+	// solFile and useEvidence.
+
+	// SAMPLER
+	var sampleCmd = &cobra.Command{
+		Use:   "sample",
+		Short: "Gibbs sampling run",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			sp.mon = &monitor{}
 			return runGrampleCmd(sp, modelMarginals)
 		},
 	}
 
-	var collapseCmd = &cobra.Command{
-		Use:   "collapse",
-		Short: "Single-Variable Collapse Checking for a Model",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runGrampleCmd(sp, CollapsedIteration)
-		},
-	}
+	cmd.AddCommand(sampleCmd)
 
-	cmd.AddCommand(collapseCmd)
-
-	pf := cmd.PersistentFlags()
-	pf.BoolVarP(&sp.verbose, "verbose", "v", false, "Verbose logging (default is much more parsimonious)")
-	pf.Int64VarP(&sp.randomSeed, "seed", "e", 0, "Random seed to use")
+	pf = sampleCmd.PersistentFlags()
+	pf.StringVarP(&sp.samplerName, "sampler", "s", "", "Name of sampler to use (simple, collapsed, adaptive)")
 	pf.StringVarP(&sp.uaiFile, "model", "m", "", "UAI model file to read")
 	pf.BoolVarP(&sp.useEvidence, "evidence", "d", false, "Apply evidence from evidence file (name inferred from model file")
 	pf.BoolVarP(&sp.solFile, "solution", "o", false, "Use UAI MAR solution file to score (name inferred from model file)")
-	pf.StringVarP(&sp.samplerName, "sampler", "s", "", "Name of sampler to use (simple, collapsed, adaptive)")
 	pf.Int64VarP(&sp.burnIn, "burnin", "b", -1, "Burn-In iteration count - if < 0, will use 2000*n (n= # vars)")
 	pf.Int64VarP(&sp.convergeWindow, "cwin", "w", -1, "Sample window size for measuring convergence, if <= 0 will use burnin size")
 	pf.Int64VarP(&sp.baseCount, "chains", "c", -1, "Number of base/starting chains, if <= 0 will use number of CPUs")
 	pf.Int64VarP(&sp.chainAdds, "chainadds", "a", 1, "Number of chains added in an adaptive step (only valid if sampler=adaptive)")
 	pf.Int64VarP(&sp.maxIters, "maxiters", "i", 0, "Maximum iterations (not including burnin) 0 if < 0 will use 20000*n")
 	pf.Int64VarP(&sp.maxSecs, "maxsecs", "x", 300, "Maximum seconds to run (0 for no maximum)")
-	pf.StringVarP(&sp.traceFile, "trace", "t", "", "Optional trace file: all samples written here")
 	pf.StringVarP(&sp.monitorAddr, "addr", "", ":8000", "Address (ip:port) that the monitor will listen at")
 	pf.BoolVarP(&sp.experiment, "experiment", "p", false, "Experiment mode - every chain advance status is written to trace file")
 
-	cmd.MarkPersistentFlagRequired("model")
-	cmd.MarkPersistentFlagRequired("sampler")
+	sampleCmd.MarkPersistentFlagRequired("model")
+	sampleCmd.MarkPersistentFlagRequired("sampler")
 
+	// COLLAPSE (collapse all available variables)
+	var collapseCmd = &cobra.Command{
+		Use:   "collapse",
+		Short: "Single-Variable Collapse Checking for a Model with Evidence and Solution available",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			sp.solFile = true
+			sp.useEvidence = true
+			return runGrampleCmd(sp, CollapsedIteration)
+		},
+	}
+
+	cmd.AddCommand(collapseCmd)
+
+	pf = collapseCmd.PersistentFlags()
+	pf.StringVarP(&sp.uaiFile, "model", "m", "", "UAI model file (evidence and MAR files expected)")
+
+	collapseCmd.MarkPersistentFlagRequired("model")
+
+	// DOT command
+	var dotCmd = &cobra.Command{
+		Use:   "dot",
+		Short: "Output graphviz representation of the model",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runGrampleCmd(sp, DotOutput)
+		},
+	}
+
+	cmd.AddCommand(dotCmd)
+
+	pf = dotCmd.PersistentFlags()
+	pf.StringVarP(&sp.uaiFile, "model", "m", "", "UAI model file")
+
+	dotCmd.MarkPersistentFlagRequired("model")
+
+	// Finally time time to execute
 	if err := cmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

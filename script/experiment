@@ -18,7 +18,8 @@ one() {
 
     echo -e "${Y}${U}${trace_file} <== ${model_file}${N}"
 
-    ./grample --experiment --evidence --solution \
+    ./grample sample \
+        --experiment --evidence --solution \
         --sampler adaptive \
         --burnin "${BURN_IN}" \
         --chains "${START_CHAINS}" \
