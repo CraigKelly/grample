@@ -13,7 +13,7 @@ Deepak Venugopal and I have been working on.
 
 # Installing and Running
 
-There's no real installion. Use `go get -u gtihub.com/CraigKelly/grample`
+There's no real installion. Use `go get -u github.com/CraigKelly/grample`
 to get the latest code. From inside the grample directory, run `make`
 to build. Then you can run `./grample -h` to get command line help.
 You can see some examples in `./script/experiment`
