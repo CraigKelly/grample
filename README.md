@@ -5,11 +5,29 @@ subtitle: Sampling for Probabilistic Graphical Models
 
 # Introduction
 
-This software package is designed to read Markov networks and perform
-marginal estimation using Gibbs sampling. The main motivation for
-creating Yet Another MCMC software package was research: this is the
-experimental implementation of Adaptive Rao-Blackwellisation that
-Deepak Venugopal and I have been working on.
+This software package is designed to read Markov networks and perform marginal
+estimation using Gibbs sampling. The main motivation for creating Yet Another
+MCMC software package was research: this is the experimental implementation of
+Adaptive Rao-Blackwellisation as reported in
+[Adaptive Rao-Blackwellisation in Gibbs Sampling for Probabilistic Graphical Models](http://proceedings.mlr.press/v89/kelly19a.html)
+
+# Using and Citing
+
+This code is licensed under the MIT license: see `LICENSE` for details. If you
+use this code in a published work, please cite the paper
+[here](http://proceedings.mlr.press/v89/kelly19a.html):
+
+```tex
+@inproceedings{AdaptiveRBGibbs,
+  title={Adaptive Rao-Blackwellisation in Gibbs Sampling for Probabilistic Graphical Models},
+  author={Kelly, Craig and Sarkhel, Somdeb and Venugopal, Deepak},
+  booktitle={The 22nd International Conference on Artificial Intelligence and Statistics},
+  editor = 	 {Chaudhuri, Kamalika and Sugiyama, Masashi},
+  pages={2907--2915},
+  year={2019},
+  series = {Proceedings of Machine Learning Research},
+}
+```
 
 # Installing and Running
 
@@ -38,7 +56,3 @@ and `github.com/stretchr/testify` for unit test assertions.
 # Hacking
 
 Use the Makefile, which delegates to scripts located in `./scripts`.
-
-# License
-
-This code is licensed under the MIT license: see `LICENSE` for details.
