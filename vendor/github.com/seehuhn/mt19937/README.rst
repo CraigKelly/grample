@@ -11,7 +11,6 @@ it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-The homepage of this package is at <http://www.seehuhn.de/pages/mt19937>.
 Please send any comments or bug reports to the program's author,
 Jochen Voss <voss@seehuhn.de>.
 
@@ -59,6 +58,11 @@ object as in the following example::
 
     rng := rand.New(mt19937.New())
     rng.Seed(time.Now().UnixNano())
+
+Note that MT19937 is not safe for concurrent accesss by different
+goroutines.  If more than one goroutine accesses the PRNG, the callers
+must synchronise access using sync.Mutex or similar.
+
 
 Comparison to the Go Default PRNG
 ---------------------------------
