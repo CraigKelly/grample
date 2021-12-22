@@ -21,3 +21,7 @@ temp.*
 
 # Project-local glide cache, RE: https://github.com/Masterminds/glide/issues/736
 .glide/
+
+# we have some python scripts as well
+.python-version
+*.pyc

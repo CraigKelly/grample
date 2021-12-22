@@ -1,19 +1,24 @@
 #!/bin/bash
 
+opts="${BENCH_OPTS}"
+echo ""
+echo "Extra bench opts: ${opts}"
+echo ""
+
 cyan=$(tput setaf 6)
 underline=$(tput smul)
 normal=$(tput sgr0)
-
-oldf=bench1.out
-newf=bench2.out
-
 function title() {
     echo -e "${cyan}${underline}" "$@" "${normal}"
 }
 
 function bench() {
-    go test -run=NONE -benchmem -benchtime=10s -bench=. ./... | tee "$@" | prettybench
+    go test -run=NONE -benchmem -benchtime=10s -bench=. ${opts} ./... | tee "$@" | prettybench
 }
+
+oldf=bench1.out
+newf=bench2.out
+rm -f "${oldf}" "${newf}"
 
 set -e
 
@@ -26,4 +31,4 @@ git stash pop
 bench ${newf}
 
 title "Comparing benchmarks ${oldf} -- ${newf}"
-benchcmp ${oldf} ${newf}
+benchstat ${oldf} ${newf}

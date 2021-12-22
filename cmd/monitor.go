@@ -72,7 +72,10 @@ func (m *monitor) Start(listenAddr string) error {
 		defer close(m.stopped)
 		fmt.Fprintf(os.Stderr, "HTTP now available at %v (see debug/vars/)\n", m.server.Addr)
 		close(started)
-		m.server.ListenAndServe()
+		err := m.server.ListenAndServe()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "ListenAndServe exited with err %v\n", err)
+		}
 	}()
 
 	<-started

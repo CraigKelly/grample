@@ -26,7 +26,7 @@ type ErrorSuite struct {
 
 // NewErrorSuite returns an ErrorSuite with all calculated error functions
 func NewErrorSuite(vars1 []*Variable, vars2 []*Variable) (*ErrorSuite, error) {
-	if len(vars1) != len(vars1) {
+	if len(vars1) != len(vars2) {
 		return nil, errors.Errorf("Variable count mismatch %d != %d", len(vars1), len(vars1))
 	}
 
@@ -189,7 +189,7 @@ func HellingerDiff(v1 *Variable, v2 *Variable) float64 {
 	return math.Sqrt(errSum) / math.Sqrt2
 }
 
-// klDivergence returns the Kullback–Leibler divergence, which is
+// klDivergence returns the Kullback-Leibler divergence, which is
 // non-symmetric! This is strictly a subroutine for JS Divergence, so there
 // is no error checking, the marginal values are operated on directly, and
 // the arrays are assumed normalized (so sum(p1) == sum(p2) == 1.0)

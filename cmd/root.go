@@ -67,7 +67,6 @@ func (n *DiscardJSON) Encode(interface{}) error {
 
 // SetIndent for DiscardJSON does nothing
 func (n *DiscardJSON) SetIndent(string, string) {
-	return
 }
 
 // Setup handles initialization based on supplied parameters
@@ -120,6 +119,13 @@ func (s *startupParams) Report() {
 // Trace writes a report to the trace output
 func (s *startupParams) Trace() {
 	s.dump(s.trace)
+}
+
+// During startup in command line mode, we will panic on various errors
+func PanicIf(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
 
 // Help text for root command
@@ -199,8 +205,8 @@ func Execute() {
 	pf.StringVarP(&sp.monitorAddr, "addr", "", ":8000", "Address (ip:port) that the monitor will listen at")
 	pf.BoolVarP(&sp.experiment, "experiment", "p", false, "Experiment mode - every chain advance status is written to trace file")
 
-	sampleCmd.MarkPersistentFlagRequired("model")
-	sampleCmd.MarkPersistentFlagRequired("sampler")
+	PanicIf(sampleCmd.MarkPersistentFlagRequired("model"))
+	PanicIf(sampleCmd.MarkPersistentFlagRequired("sampler"))
 
 	// COLLAPSE (collapse all available variables)
 	var collapseCmd = &cobra.Command{
@@ -218,7 +224,7 @@ func Execute() {
 	pf = collapseCmd.PersistentFlags()
 	pf.StringVarP(&sp.uaiFile, "model", "m", "", "UAI model file (evidence and MAR files expected)")
 
-	collapseCmd.MarkPersistentFlagRequired("model")
+	PanicIf(collapseCmd.MarkPersistentFlagRequired("model"))
 
 	// DOT command
 	var dotCmd = &cobra.Command{
@@ -234,7 +240,7 @@ func Execute() {
 	pf = dotCmd.PersistentFlags()
 	pf.StringVarP(&sp.uaiFile, "model", "m", "", "UAI model file")
 
-	dotCmd.MarkPersistentFlagRequired("model")
+	PanicIf(dotCmd.MarkPersistentFlagRequired("model"))
 
 	// Finally time time to execute
 	if err := cmd.Execute(); err != nil {
@@ -468,7 +474,7 @@ func modelMarginals(sp *startupParams) error {
 	keepWorking := true
 	for keepWorking {
 		for _, ch := range chains {
-			ch.AdvanceChain(&wg)
+			PanicIf(ch.AdvanceChain(&wg))
 		}
 		wg.Wait()
 
@@ -490,7 +496,7 @@ func modelMarginals(sp *startupParams) error {
 
 		// Status update (including experiment file)
 		if now.After(nextStatus) || !keepWorking || sp.experiment {
-			runTime := time.Now().Sub(startTime).Seconds()
+			runTime := time.Since(startTime).Seconds()
 
 			if now.After(nextStatus) || !keepWorking {
 				sp.mon.RunTime.Set(runTime)
@@ -555,13 +561,13 @@ func modelMarginals(sp *startupParams) error {
 	}
 
 	// COMPLETED! grab results and normalize our marginals
-	runTime := time.Now().Sub(startTime).Seconds()
+	runTime := time.Since(startTime).Seconds()
 	finalVars, err := sampler.MergeChains(chains)
 	if err != nil {
 		return errors.Wrapf(err, "Error in final chain merge")
 	}
 	for _, v := range finalVars {
-		v.NormMarginal()
+		PanicIf(v.NormMarginal())
 	}
 
 	// Output the marginals we found and our final evaluation
@@ -667,14 +673,14 @@ func modelMarginals(sp *startupParams) error {
 	sp.trace.Printf("// EVIDENCE")
 	for _, v := range finalVars {
 		if v.FixedVal >= 0 {
-			sp.traceJ.Encode(v)
+			PanicIf(sp.traceJ.Encode(v))
 			sp.verb.Printf("Variable[%d] %s (Card:%d, %+v) EVID=%d\n", v.ID, v.Name, v.Card, v.State, v.FixedVal)
 		}
 	}
 	sp.trace.Printf("// VARS (ESTIMATED)")
 	for _, v := range finalVars {
 		if v.FixedVal < 0 {
-			sp.traceJ.Encode(v)
+			PanicIf(sp.traceJ.Encode(v))
 			sp.verb.Printf("Variable[%d] %s (Card:%d, %+v) %+v\n", v.ID, v.Name, v.Card, v.State, v.Marginal)
 		}
 	}
@@ -697,7 +703,7 @@ func modelMarginals(sp *startupParams) error {
 
 		sp.trace.Printf("// VARS SORTED BY DIST FROM HELLINGER")
 		for _, v := range report {
-			sp.traceJ.Encode(v)
+			PanicIf(sp.traceJ.Encode(v))
 			sp.verb.Printf("Variable[%d] %s (Card:%d, %+v) %+v\n", v.ID, v.Name, v.Card, v.State, v.Marginal)
 		}
 	}
@@ -707,7 +713,7 @@ func modelMarginals(sp *startupParams) error {
 
 	sp.trace.Printf("// ENTIRE MODEL\n")
 	sp.traceJ.SetIndent("", "  ")
-	sp.traceJ.Encode(mod)
+	PanicIf(sp.traceJ.Encode(mod))
 
 	return nil
 }

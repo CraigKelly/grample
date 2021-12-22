@@ -234,7 +234,10 @@ func (c *Chain) oneSample(updateVars bool) error {
 		if !v.Collapsed {
 			c.Target.Vars[varIdx].Marginal[value] += 1.0
 		}
-		c.ChainHistory[varIdx].Add(value)
+		err := c.ChainHistory[varIdx].Add(value)
+		if err != nil {
+			return errors.Wrap(err, "Error taking sample and adding to ChainHistory")
+		}
 
 		c.TotalSampleCount++
 	}

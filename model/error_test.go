@@ -12,12 +12,12 @@ func TestErrorSuiteNormed(t *testing.T) {
 	assert := assert.New(t)
 
 	vars1 := []*Variable{
-		&Variable{0, "V1", 2, -1, []float64{250.0, 750.0}, nil, false},
-		&Variable{0, "V2", 2, -1, []float64{25.1, 75.3}, nil, false},
+		{0, "V1", 2, -1, []float64{250.0, 750.0}, nil, false},
+		{0, "V2", 2, -1, []float64{25.1, 75.3}, nil, false},
 	}
 	vars2 := []*Variable{
-		&Variable{0, "V1", 2, -1, []float64{42.0, 42.0}, nil, false},
-		&Variable{0, "V2", 2, -1, []float64{3.1, 3.1}, nil, false},
+		{0, "V1", 2, -1, []float64{42.0, 42.0}, nil, false},
+		{0, "V2", 2, -1, []float64{3.1, 3.1}, nil, false},
 	}
 
 	// Calculate mean hellinger
@@ -94,12 +94,12 @@ func TestErrorSuiteMaxMean(t *testing.T) {
 	// We manually calculated our expected values for these variables
 
 	vars1 := []*Variable{
-		&Variable{0, "V1", 3, -1, []float64{30.0, 40.0, 30.0}, nil, false},
-		&Variable{0, "V2", 3, -1, []float64{30.0, 40.0, 30.0}, nil, false},
+		{0, "V1", 3, -1, []float64{30.0, 40.0, 30.0}, nil, false},
+		{0, "V2", 3, -1, []float64{30.0, 40.0, 30.0}, nil, false},
 	}
 	vars2 := []*Variable{
-		&Variable{0, "V1", 3, -1, []float64{90.0, 5.0, 5.0}, nil, false},
-		&Variable{0, "V2", 3, -1, []float64{60.0, 30.0, 10.0}, nil, false},
+		{0, "V1", 3, -1, []float64{90.0, 5.0, 5.0}, nil, false},
+		{0, "V2", 3, -1, []float64{60.0, 30.0, 10.0}, nil, false},
 	}
 
 	var suite *ErrorSuite

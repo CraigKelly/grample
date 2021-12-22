@@ -37,7 +37,8 @@ func NewGibbsSimple(gen *rand.Generator, m *model.Model) (*GibbsSimple, error) {
 	// parallel chains. This pool keeps our allocations low.
 	varPool := &sync.Pool{
 		New: func() interface{} {
-			return make([]int, len(m.Vars))
+			is := make([]int, len(m.Vars))
+			return &is
 		},
 	}
 
@@ -51,7 +52,8 @@ func NewGibbsSimple(gen *rand.Generator, m *model.Model) (*GibbsSimple, error) {
 	}
 	valuePool := &sync.Pool{
 		New: func() interface{} {
-			return make([]float64, maxCard)
+			fs := make([]float64, maxCard)
+			return &fs
 		},
 	}
 
@@ -170,22 +172,22 @@ func (g *GibbsSimple) SampleVar(varIdx int, s []int) (int, error) {
 
 	// We are going to gather up the result of the functions across all the
 	// values for our variable (sampleVar)
-	sampleWeightsBuffer := g.valuePool.Get().([]float64)
+	sampleWeightsBuffer := g.valuePool.Get().(*[]float64)
 	defer g.valuePool.Put(sampleWeightsBuffer)
-	sampleWeights := sampleWeightsBuffer[:sampleVar.Card]
+	sampleWeights := (*sampleWeightsBuffer)[:sampleVar.Card]
 	// Don't forget to zero the weights since we're reusing buffers
 	for i := range sampleWeights {
 		sampleWeights[i] = 0.0
 	}
 
 	// For each function/factor that our variable is involved with...
-	callValBuffer := g.varPool.Get().([]int)
+	callValBuffer := g.varPool.Get().(*[]int)
 	defer g.varPool.Put(callValBuffer)
 	for _, fun := range g.varFuncs[sampleVar.ID] {
 		// Set up call values: we want a slice of the correct size. We
 		// initialize with values from our last sample. We also need to find
 		// the index for sampleVar in this list.
-		callVals := callValBuffer[:len(fun.Vars)]
+		callVals := (*callValBuffer)[:len(fun.Vars)]
 		callIdx := -1
 		for i, v := range fun.Vars {
 			callVals[i] = g.last[v.ID]

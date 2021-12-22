@@ -1,3 +1,8 @@
 #!/bin/bash
 
-go test -run=NONE -benchmem -benchtime=10s -bench=. ./... | prettybench
+opts="${BENCH_OPTS}"
+echo ""
+echo "Extra bench opts: ${opts}"
+echo ""
+
+go test -run=NONE -benchmem -benchtime=10s -bench=. ${opts} ./... | prettybench

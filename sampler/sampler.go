@@ -52,7 +52,8 @@ func NewUniformSampler(gen *rand.Generator, maxVars int) (*UniformSampler, error
 
 	p := &sync.Pool{
 		New: func() interface{} {
-			return make([]int, maxVars)
+			is := make([]int, maxVars)
+			return &is
 		},
 	}
 
@@ -138,7 +139,7 @@ func (s *UniformSampler) VarSample(vs []*model.Variable, excludeCollapsed bool) 
 	}
 
 	// First find indexes of all variables we can select (that are NOT fixed)
-	targetIndexes := s.pool.Get().([]int)
+	targetIndexes := s.pool.Get().(*[]int)
 	defer s.pool.Put(targetIndexes)
 
 	targetCount := 0
@@ -150,7 +151,7 @@ func (s *UniformSampler) VarSample(vs []*model.Variable, excludeCollapsed bool) 
 			continue
 		}
 
-		targetIndexes[targetCount] = i
+		(*targetIndexes)[targetCount] = i
 		targetCount++
 	}
 
@@ -160,7 +161,7 @@ func (s *UniformSampler) VarSample(vs []*model.Variable, excludeCollapsed bool) 
 		return 0, errors.New("No Variables to select")
 	} else if targetCount == 1 {
 		// Only one variable to select
-		return targetIndexes[0], nil
+		return (*targetIndexes)[0], nil
 	}
 
 	// Select an entry from our list and return the corresponding index
@@ -169,5 +170,5 @@ func (s *UniformSampler) VarSample(vs []*model.Variable, excludeCollapsed bool) 
 		return -1, e
 	}
 
-	return targetIndexes[i], nil
+	return (*targetIndexes)[i], nil
 }

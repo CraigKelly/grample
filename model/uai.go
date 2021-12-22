@@ -195,9 +195,8 @@ func (r UAIReader) ApplyEvidence(data []byte, m *Model) error {
 
 	var err error
 
-	sampleCount := 1 // default to 1 sample (1-line evidence file format)
 	if lineCount == 2 {
-		sampleCount, err = fr.ReadInt()
+		sampleCount, err := fr.ReadInt()
 		if err != nil {
 			return errors.Wrapf(err, "Error reading UAI evid file sample count")
 		}

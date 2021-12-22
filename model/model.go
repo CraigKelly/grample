@@ -67,6 +67,9 @@ func NewModelFromFile(r Reader, filename string, useEvidence bool) (*Model, erro
 	// Apply evidence if necessary
 	if useEvidence {
 		err = model.ApplyEvidenceFromFile(r, filename+".evid")
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return model, nil

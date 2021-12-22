@@ -2,16 +2,15 @@
 
 set -e
 
-Y=$(tput setaf 3)
-U=$(tput smul)
-N=$(tput sgr0)
-
-wrap() {
-    echo -e "${Y}${U}$*${N}"
-    # shellcheck disable=SC2048,SC2046
-    $* $(go list ./...) 2>&1 | ./script/color.py
+cyan=$(tput setaf 6)
+underline=$(tput smul)
+normal=$(tput sgr0)
+function title() {
+    echo -e "${cyan}${underline}" "$@" "${normal}"
 }
 
-wrap go vet
-wrap golint
-wrap goconst
+title "go vet"
+go vet $(go list ./...) 2>&1 | ./script/color.py
+
+title "golangci-lint"
+golangci-lint run --color=never 2>&1 | ./script/color.py

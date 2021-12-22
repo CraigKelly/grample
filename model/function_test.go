@@ -208,7 +208,7 @@ func TestFuncBuildup(t *testing.T) {
 			return
 		}
 
-		f.AddValue(vals, 1.0)
+		assert.NoError(f.AddValue(vals, 1.0))
 
 		if !vi.Next() {
 			break
@@ -231,7 +231,7 @@ func TestFuncBuildup(t *testing.T) {
 			return
 		}
 
-		f.AddValue(vals, 2.42)
+		assert.NoError(f.AddValue(vals, 2.42))
 
 		if !vi.Next() {
 			break

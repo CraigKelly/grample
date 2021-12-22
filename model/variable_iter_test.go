@@ -48,18 +48,18 @@ func TestVarIter(t *testing.T) {
 	assert.NoError(e)
 
 	checkExpectSeq(assert, false, []*Variable{v1, v2, v3}, [][]int{
-		[]int{0, 0, 0},
-		[]int{0, 0, 1},
-		[]int{0, 1, 0},
-		[]int{0, 1, 1},
-		[]int{0, 2, 0},
-		[]int{0, 2, 1},
-		[]int{1, 0, 0},
-		[]int{1, 0, 1},
-		[]int{1, 1, 0},
-		[]int{1, 1, 1},
-		[]int{1, 2, 0},
-		[]int{1, 2, 1},
+		{0, 0, 0},
+		{0, 0, 1},
+		{0, 1, 0},
+		{0, 1, 1},
+		{0, 2, 0},
+		{0, 2, 1},
+		{1, 0, 0},
+		{1, 0, 1},
+		{1, 1, 0},
+		{1, 1, 1},
+		{1, 2, 0},
+		{1, 2, 1},
 	})
 }
 
@@ -67,14 +67,14 @@ func TestVarIterCorners(t *testing.T) {
 	assert := assert.New(t)
 
 	// Creation error
-	vi, e := NewVariableIter([]*Variable{}, false)
+	_, e := NewVariableIter([]*Variable{}, false)
 	assert.Error(e)
-	vi, e = NewVariableIter(nil, false)
+	_, e = NewVariableIter(nil, false)
 	assert.Error(e)
 
 	v, e := NewVariable(0, 2)
 	assert.NoError(e)
-	vi, e = NewVariableIter([]*Variable{v}, false)
+	vi, e := NewVariableIter([]*Variable{v}, false)
 	assert.NoError(e)
 
 	// Value error
@@ -118,21 +118,21 @@ func TestVarIterFixedVals(t *testing.T) {
 	assert.NoError(e)
 
 	checkExpectSeq(assert, true, []*Variable{vFix, v1, v2}, [][]int{
-		[]int{1, 0, 0},
-		[]int{1, 0, 1},
-		[]int{1, 1, 0},
-		[]int{1, 1, 1},
+		{1, 0, 0},
+		{1, 0, 1},
+		{1, 1, 0},
+		{1, 1, 1},
 	})
 	checkExpectSeq(assert, true, []*Variable{v1, vFix, v2}, [][]int{
-		[]int{0, 1, 0},
-		[]int{0, 1, 1},
-		[]int{1, 1, 0},
-		[]int{1, 1, 1},
+		{0, 1, 0},
+		{0, 1, 1},
+		{1, 1, 0},
+		{1, 1, 1},
 	})
 	checkExpectSeq(assert, true, []*Variable{v1, v2, vFix}, [][]int{
-		[]int{0, 0, 1},
-		[]int{0, 1, 1},
-		[]int{1, 0, 1},
-		[]int{1, 1, 1},
+		{0, 0, 1},
+		{0, 1, 1},
+		{1, 0, 1},
+		{1, 1, 1},
 	})
 }

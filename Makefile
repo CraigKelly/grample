@@ -9,8 +9,11 @@ TESTED=.tested
 .PHONY: build
 build: $(BINARY)
 $(BINARY): $(SOURCES) $(TESTED)
-	@go build -i ./... 2>&1 | $(TOOLDIR)/color.py
+	@go build ./... 2>&1 | $(TOOLDIR)/color.py
 	go build
+
+.PHONY: full-build
+full-build: clean format lint deps build
 
 .PHONY: install
 install: build
@@ -21,10 +24,13 @@ clean:
 	rm -f $(BINARY) debug debug.test *.out cover.html sampler.test $(TESTED)
 	go clean ./...
 
-.PHONY: lint-install
-lint-install:
-	go get -u github.com/alecthomas/gometalinter
-	gometalinter --install
+.PHONY: deps
+deps:
+	go mod tidy
+
+.PHONY: tool-install
+tool-install:
+	$(TOOLDIR)/tool-install
 
 .PHONY: format
 format:
@@ -50,8 +56,3 @@ bench: $(SOURCES) $(TESTED)
 .PHONY: clean
 update: clean
 	$(TOOLDIR)/update
-
-.PHONY: sys-update
-sys-update:
-	$(TOOLDIR)/sys-update
-

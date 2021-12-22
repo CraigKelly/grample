@@ -45,13 +45,13 @@ how to use the sampler package.
 
 # Dependencies
 
-As of this writing, this code has only been tested with Go 1.10 and Go 1.11
-(and minor versions).
+As of this writing, this code has only been tested with Go 1.17.
 
-Currently we are using `dep` for dependency management, so see `Gopkg.toml`
-and `./vendor`. The short story is that we don't have many dependencies,
-but we *are* using `github.com/spf13/cobra` to manage the command line
-and `github.com/stretchr/testify` for unit test assertions.
+This repo now uses the standard `go mod` commands for dependencies. Note that
+this was ported from using `dep` for dependency management, and we have
+removed the vendor dir. The short story is that we don't have many
+dependencies, but we *are* using `github.com/spf13/cobra` to manage the
+command line and `github.com/stretchr/testify` for unit test assertions.
 
 # Hacking
 

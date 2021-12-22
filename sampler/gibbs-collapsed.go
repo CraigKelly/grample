@@ -196,10 +196,10 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 	postFunc.Name = fmt.Sprintf("COLLAPSE-%v", collVar.Name)
 
 	// We need a buffer to call each function AND a buffer to iterate function values
-	callValBuffer := base.varPool.Get().([]int)
+	callValBuffer := base.varPool.Get().(*[]int)
 	defer base.varPool.Put(callValBuffer)
 
-	varState := base.varPool.Get().([]int)
+	varState := base.varPool.Get().(*[]int)
 	defer base.varPool.Put(varState)
 
 	// Iterate over all configurations in the blanket/neighborhood
@@ -208,22 +208,22 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 		return nil, err
 	}
 	for {
-		err := varIter.Val(varState)
+		err := varIter.Val(*varState)
 		if err != nil {
 			return nil, err
 		}
 
 		// We need to know that current value of the variable we are collapsing
-		marginalVal := varState[collIdx]
+		marginalVal := (*varState)[collIdx]
 
 		// Iterate over all functions, updating varState
 		funcResult := 0.0
 		for _, fun := range base.varFuncs[collVar.ID] {
 			// Populate call value slice
-			callVals := callValBuffer[:len(fun.Vars)]
+			callVals := (*callValBuffer)[:len(fun.Vars)]
 			for i, v := range fun.Vars {
 				stateIdx := blanketXref[v.ID]
-				callVals[i] = varState[stateIdx]
+				callVals[i] = (*varState)[stateIdx]
 			}
 
 			// Call function and add (in log space, so really multiply) to our
@@ -243,12 +243,15 @@ func (g *GibbsCollapsed) Collapse(varIdx int) (*model.Variable, error) {
 		collVar.Marginal[marginalVal] += funcResult
 
 		// Now we need to update our new function
-		callVals := callValBuffer[:len(newFuncVars)]
+		callVals := (*callValBuffer)[:len(newFuncVars)]
 		for i, v := range newFuncVars {
 			stateIdx := blanketXref[v.ID]
-			callVals[i] = varState[stateIdx]
+			callVals[i] = (*varState)[stateIdx]
 		}
-		postFunc.AddValue(callVals, funcResult)
+		err = postFunc.AddValue(callVals, funcResult)
+		if err != nil {
+			return nil, errors.Wrapf(err, "Could not add to postFunc (%v, %+v)", callVals, funcResult)
+		}
 
 		// Time for next variable state
 		if !varIter.Next() {
