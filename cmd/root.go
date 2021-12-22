@@ -144,7 +144,7 @@ func runGrampleCmd(sp *startupParams, f grampleCmd) error {
 		return err
 	}
 
-	sp.out.Printf("grample\n")
+	//sp.out.Printf("grample\n")
 
 	if sp.mon != nil {
 		err = sp.mon.Start(sp.monitorAddr)

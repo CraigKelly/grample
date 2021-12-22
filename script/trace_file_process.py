@@ -6,6 +6,7 @@ import sys
 
 
 def valid_lines():
+    """Yield all valid lines in the "VARS (ESTIMATED)" section"""
     started = False
     for line in sys.stdin:
         line = line.strip()
@@ -17,15 +18,14 @@ def valid_lines():
                 started = True
             continue
 
-        if line.startswith("// OPERATING PARAMS"):
-            return
-        if line.startswith("// ENTIRE MODEL"):
+        if line.startswith("// "):
             return
 
         yield line
 
 
 def main():
+    """Entry point."""
     cols = []
     rows = []
     for line in valid_lines():

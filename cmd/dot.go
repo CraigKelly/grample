@@ -20,13 +20,13 @@ func DotOutput(sp *startupParams) error {
 	var err error
 
 	// Read model from file
-	sp.out.Printf("Reading model from %s\n", sp.uaiFile)
+	sp.out.Printf("// Reading model from %s\n", sp.uaiFile)
 	reader := model.UAIReader{}
 	mod, err = model.NewModelFromFile(reader, sp.uaiFile, sp.useEvidence)
 	if err != nil {
 		return err
 	}
-	sp.out.Printf("Model has %d vars and %d functions\n", len(mod.Vars), len(mod.Funcs))
+	sp.out.Printf("// Model has %d vars and %d functions\n", len(mod.Vars), len(mod.Funcs))
 
 	// Find all variable linkages
 	type AdjMap map[int]bool
@@ -49,7 +49,7 @@ func DotOutput(sp *startupParams) error {
 
 	var target *log.Logger
 	if len(sp.traceFile) > 0 {
-		sp.out.Printf("Writing model to trace file %v\n", sp.traceFile)
+		sp.out.Printf("// Writing model to trace file %v\n", sp.traceFile)
 		target = sp.trace
 	} else {
 		target = sp.out
