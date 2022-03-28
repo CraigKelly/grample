@@ -31,17 +31,17 @@ use this code in a published work, please cite the paper
 
 # Installing and Running
 
-There's no real installion. Use `go get -u github.com/CraigKelly/grample`
-to get the latest code. From inside the grample directory, run `make`
-to build. Then you can run `./grample -h` to get command line help.
-You can see some examples in `./script/experiment`
+There's no real installion. Use `go get -u github.com/CraigKelly/grample` to
+get the latest code. From inside the grample directory, run `make` to build.
+Then you can run `./grample -h` to get command line help.  You can see some
+examples in `./script/experiment`
 
 # Using As a Library
 
-If you want to grample as a library, that's fairly easy. There aren't
-any directions right now, but see `./cmd/root.go` for examples. That's
-our main command line implementation, so you can get a good idea of
-how to use the sampler package.
+If you want to grample as a library, that's fairly easy. There aren't any
+directions right now, but see `./cmd/root.go` for examples. That's our main
+command line implementation, so you can get a good idea of how to use the
+sampler package.
 
 # Dependencies
 
