@@ -10,8 +10,8 @@ function title() {
 title "Installing Go perf/prod/benchmark tools"
 go install golang.org/x/perf/cmd/...@latest
 
-title "Installing golangci-lint"
-go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+#title "Installing golangci-lint"
+#go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
 title "Performing go mod tidy"
 go mod tidy

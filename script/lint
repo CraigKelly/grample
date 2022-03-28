@@ -12,5 +12,6 @@ function title() {
 title "go vet"
 go vet $(go list ./...) 2>&1 | ./script/color.py
 
-title "golangci-lint"
-golangci-lint run --color=never 2>&1 | ./script/color.py
+# golangci-lint is out until it is better at supporting Go version upgrades
+#title "golangci-lint"
+#golangci-lint run --color=never 2>&1 | ./script/color.py
